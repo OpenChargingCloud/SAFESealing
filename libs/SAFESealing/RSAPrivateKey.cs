@@ -6,7 +6,11 @@ using System.Threading.Tasks;
 
 namespace SAFESealing
 {
-    public class PrivateKey
+    public class RSAPrivateKey
     {
+
+
+
     }
+
 }

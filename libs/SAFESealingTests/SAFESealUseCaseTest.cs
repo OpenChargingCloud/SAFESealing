@@ -39,7 +39,9 @@ namespace SAFESealingTests
             // ==== RECIPIENT ====
             // ---- perform revealing
             var revealer         = new SAFESealRevealer(true);
-            var receivedPayload  = revealer.Reveal(senderPublicKey, recipientPrivateKey, sealedData);
+            var receivedPayload  = revealer.Reveal(senderPublicKey,
+                                                   recipientPrivateKey,
+                                                   sealedData);
 
             // ---- test result
             //Assert.AreEqual(testPayload, receivedPayload);

@@ -1,22 +1,17 @@
 ﻿using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.TeleTrust;
-using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+
 
 namespace SAFESealing
 {
-    public class CryptoFactoryImpl
+    public class CryptoFactoryImpl : ICryptoFactory
     {
 
 
-        public IAsymmetricBlockCipher? GetCipherFromCipherSpec(AlgorithmSpec algorithmSpec)
+        public Cipher? GetCipherFromCipherSpec(AlgorithmSpec algorithmSpec)
         {
 
             switch (algorithmSpec.CryptoType)
@@ -77,8 +72,8 @@ namespace SAFESealing
          * @param algorithmSpec algorithm spec provided.
          * @return
          */
-        private IAsymmetricBlockCipher GetRSAECB(AlgorithmSpec algorithmSpec)
-            => new RsaEngine(); // corresponds to "RSA/ECB/NoPadding"
+        private Cipher GetRSAECB(AlgorithmSpec algorithmSpec)
+            => new (new RsaEngine()); // corresponds to "RSA/ECB/NoPadding"
 
     }
 

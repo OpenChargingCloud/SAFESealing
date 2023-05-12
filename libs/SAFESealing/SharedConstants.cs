@@ -19,7 +19,7 @@ namespace SAFESealing
 
         public static readonly Int32                SAFE_SEAL_VERSION = 1;
 
-        public static readonly DerObjectIdentifier  OID_SAFE_SEA       = new ("1.3.6.1.4.1.60279.1.1");
+        public static readonly DerObjectIdentifier  OID_SAFE_SEAL      = new ("1.3.6.1.4.1.60279.1.1");
 
         public static readonly DerObjectIdentifier  OID_SAFE_SEAL_AUTH = new ("1.3.6.1.4.1.60279.1.2");
 

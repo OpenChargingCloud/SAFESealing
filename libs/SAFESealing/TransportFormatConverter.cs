@@ -1,4 +1,5 @@
 ﻿using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -27,9 +28,9 @@ namespace SAFESealing
          *
          * @param ids a {@link com.metabit.custom.safe.safeseal.impl.InternalTransportTuple} object
          * @return an array of {@link byte} objects
-         * @throws java.io.IOException if any.
+         * @throws java.io.IOException if any.s
          */
-        public Byte[] wrapForTransport(InternalTransportTuple ids)
+        public Byte[] WrapForTransport(InternalTransportTuple ids)
         {
 
             keyAgreementProtocolOID  = ids.CryptoSettings.KeyAgreementProtocol?.       OID;
@@ -47,56 +48,56 @@ namespace SAFESealing
             //----
             // prepare first part
             var encryptionPart = new Asn1EncodableVector();
-            encryptionPart.Add(OID_IIP_ALGORITHM); // or wrap in context[1] ?
-            encryptionPart.Add(new DerTaggedObject(BERTags.CONTEXT_SPECIFIC, 0, encryptionOID));
+            encryptionPart.Add(SharedConstants.OID_IIP_ALGORITHM); // or wrap in context[1] ?
+            encryptionPart.Add(new DerTaggedObject(0, encryptionOID));
 
             if (compressionOID != null) // may be omitted
-                encryptionPart.Add(new DerTaggedObject(BERTags.CONTEXT_SPECIFIC, 1, compressionOID));
+                encryptionPart.Add(new DerTaggedObject(1, compressionOID));
             if (true)
-                encryptionPart.Add(new DerTaggedObject(BERTags.CONTEXT_SPECIFIC, 2, new DerInteger(ids.cryptoSettings.getEncryptionKeySize())));
+                encryptionPart.Add(new DerTaggedObject(2, new DerInteger(ids.CryptoSettings.EncryptionKeySize)));
             if (false)
-                encryptionPart.Add(new DerTaggedObject(BERTags.CONTEXT_SPECIFIC, 3, new DerInteger(InterleavedIntegrityPadding.NONCE_SIZE* 8)));
+                encryptionPart.Add(new DerTaggedObject(3, new DerInteger(InterleavedIntegrityPadding.NONCE_SIZE* 8)));
 
             if (ids.CryptoIV is not null) //@TODO check reader must accept absence
                 encryptionPart.Add(new DerOctetString(ids.CryptoIV));
 
-            var firstSequence = new DerTaggedObject(BERTags.APPLICATION, 0, new DerSequence(encryptionPart));
+            var firstSequence = new DerTaggedObject(0, new DerSequence(encryptionPart));
 
 
             // prepare second part
-            Asn1EncodableVector keyAgreementPart = new Asn1EncodableVector();
+            var keyAgreementPart = new Asn1EncodableVector();
 
             if (keyAgreementProtocolOID != null) // used only if this layer is activated
             {
                 keyAgreementPart.Add(keyAgreementProtocolOID);
                 keyAgreementPart.Add(new DerOctetString(ids.KeyDiversificationData));
                 // details on our EC
-                keyAgreementPart.Add(new DerTaggedObject(BERTags.CONTEXT_SPECIFIC, 0, keyDiversificationOID));
+                keyAgreementPart.Add(new DerTaggedObject(0, keyDiversificationOID));
 
                 if (ecAlgorithmOID != null)
-                    keyAgreementPart.Add(new DerTaggedObject(BERTags.CONTEXT_SPECIFIC, 1, ecAlgorithmOID));
+                    keyAgreementPart.Add(new DerTaggedObject(1, ecAlgorithmOID));
 
                 // the usual sequence for ECDetails would be: SEQUENCE (OID_ECDH_PUBLIC_KEY, OID_EC_NAMED_CURVE_SECP_256_R1, 03 nn xxxx data)
                 if (ecDetails != null)
-                    keyAgreementPart.Add(new DerTaggedObject(BERTags.CONTEXT_SPECIFIC, 2, new DerSequence(ecDetails)));
+                    keyAgreementPart.Add(new DerTaggedObject(2, new DerSequence(ecDetails)));
                 // optional: public key references)
                 if (keyReference != null)
-                    keyAgreementPart.Add(new DerTaggedObject(BERTags.CONTEXT_SPECIFIC, 3, new DerSequence(keyReference))); // optional: the public key references
+                    keyAgreementPart.Add(new DerTaggedObject(3, new DerSequence(keyReference))); // optional: the public key references
             }
 
-            var secondSequence = new DerTaggedObject(BERTags.APPLICATION, 1, new DerSequence(keyAgreementPart));
+            var secondSequence = new DerTaggedObject(1, new DerSequence(keyAgreementPart));
 
             var authenticityPart = new Asn1EncodableVector();
             // auth part not in use in version 1, so this sequence is empty.
             // authenticityPart.add(OID_SAFE_SEAL_AUTH);
-            var thirdSequence = new DerTaggedObject(BERTags.APPLICATION, 2, new DerSequence(authenticityPart));
+            var thirdSequence = new DerTaggedObject(2, new DerSequence(authenticityPart));
 
             // top-level sequence
             var bufferStream = new MemoryStream();
             var _out         = new DerSequenceGenerator(bufferStream);
 
-            _out.AddObject(OID_SAFE_SEAL);
-            _out.AddObject(new DerInteger(SAFE_SEAL_VERSION));
+            _out.AddObject(SharedConstants.OID_SAFE_SEAL);
+            _out.AddObject(new DerInteger(SharedConstants.SAFE_SEAL_VERSION));
             _out.AddObject(firstSequence);
             _out.AddObject(secondSequence);
             _out.AddObject(thirdSequence);
@@ -143,7 +144,7 @@ namespace SAFESealing
                 var procedureVersion  = DerInteger.GetInstance(seq[1]);
 
                 // is it our procedure, and do we handle this version?
-                if (!OID_SAFE_SEAL.equals(procedureOID))
+                if (!SharedConstants.OID_SAFE_SEAL.Equals(procedureOID))
                     throw new Exception("different format (protocol OID mismatch)");
 
                 switch (procedureVersion.IntPositiveValueExact)
@@ -190,29 +191,31 @@ namespace SAFESealing
                         case "DLTaggedObject":
                         case "DLApplicationSpecific":
                             var taggedObject = Asn1TaggedObject.GetInstance(entry);
-                            if (taggedObject.GetTagClass() != BERTags.CONTEXT_SPECIFIC)
-                            {
-                                throw new Exception("tag class mismatch " + taggedObject.getTagClass()); //@IMPROVE
-                                // continue; before, we just skipped.
-                            }
+                            //if (taggedObject.GetTagClass() != BERTags.CONTEXT_SPECIFIC)
+                            //{
+                            //    throw new Exception("tag class mismatch " + taggedObject.getTagClass()); //@IMPROVE
+                            //    // continue; before, we just skipped.
+                            //}
 
                             switch (taggedObject.TagNo)
                             {
 
                                 case 0: // CONTEXT[0] OID is the encryption algorithm OID
-                                    result.CryptoSettings.SetEncryptionOID(DerObjectIdentifier.GetInstance(taggedObject.getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
+                                    result.CryptoSettings.SetEncryptionOID(DerObjectIdentifier.GetInstance(taggedObject.GetObject()));// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
                                     break;
 
                                 case 1: // CONTEXT[1] OID is the compression algorithm OID
-                                    result.CryptoSettings.SetCompressionOID(DerObjectIdentifier.GetInstance(taggedObject.getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
+                                    result.CryptoSettings.SetCompressionOID(DerObjectIdentifier.GetInstance(taggedObject.GetObject()));// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
                                     break;
 
                                 case 2: // CONTEXT[2] INTEGER is the optional keysize in bit
-                                    result.CryptoSettings.EncryptionKeySize = DerInteger.GetInstance(taggedObject.getBaseUniversal(true,BERTags.INTEGER)).intPositiveValueExact();
+                                    result.CryptoSettings.EncryptionKeySize = (UInt32) ((DerInteger) taggedObject.GetObject()).Value.IntValue;
+                                        //taggedObject.getBaseUniversal(true,BERTags.INTEGER)).intPositiveValueExact();
                                     break;
 
                                 case 3: // CONTEXT[3] INTEGER is the optional nonce size in bit
-                                    int nonceSizeInBit = DerInteger.GetInstance(taggedObject.getBaseUniversal(true,BERTags.INTEGER)).intPositiveValueExact();
+                                    var nonceSizeInBit = (UInt32) ((DerInteger) taggedObject.GetObject()).Value.IntValue;
+                                        //DerInteger.GetInstance(taggedObject.getBaseUniversal(true,BERTags.INTEGER)).intPositiveValueExact();
                                     if (nonceSizeInBit != InterleavedIntegrityPadding.NONCE_SIZE * 8)
                                         throw new Exception("this version uses fixed nonce size.");
                                     break;
@@ -232,25 +235,20 @@ namespace SAFESealing
                 // Asn1Util.tryGetBaseUniversal(keyAgreementPart, BERTags.APPLICATION, 0, true, BERTags.SEQUENCE);
 
                 //# parse the key agreement part
-                var kaseq = (DLSequence) keyAgreementPart.getBaseUniversal(true, BERTags.SEQUENCE);
-                if (kaseq.size() > 0) // is a key agreement in use at all?
+                var kaseq = Asn1Sequence.GetInstance(keyAgreementPart.GetObject());
+                            //(DLSequence) keyAgreementPart.getBaseUniversal(true, BERTags.SEQUENCE);
+                if (kaseq.Count > 0) // is a key agreement in use at all?
                 {
-
-                    var kaseqObjects = kaseq.getObjects();
-
-                    while (kaseqObjects.hasMoreElements())
+                    foreach (var entry in kaseq)
                     {
-
-                        Object entry = kaseqObjects.nextElement();
-
-                        switch (entry.getClass().getSimpleName())
+                        switch (entry.GetType().Name)
                         {
 
                             case "Asn1ObjectIdentifier":
                                 result.CryptoSettings.SetKeyAgreementProtocolByOID(DerObjectIdentifier.GetInstance(entry));
                                 break;
 
-                            case "DEROctetString":
+                            case "DerOctetString":
                                 result.KeyDiversificationData  = DerOctetString.GetInstance(entry).GetOctets();
                                 break;
 
@@ -259,23 +257,23 @@ namespace SAFESealing
 
                                 var taggedObject = Asn1TaggedObject.GetInstance(entry);
 
-                                if (taggedObject.getTagClass() != BERTags.CONTEXT_SPECIFIC)
-                                {
-                                    throw new Exception("tag class mismatch " + taggedObject.getTagClass()); //@IMPROVE
-                                    // continue; before, we just skipped.
-                                }
+                                //if (taggedObject.GetType().Name != BERTags.CONTEXT_SPECIFIC)
+                                //{
+                                //    throw new Exception("tag class mismatch " + taggedObject.getTagClass()); //@IMPROVE
+                                //    // continue; before, we just skipped.
+                                //}
 
                                 switch (taggedObject.TagNo)
                                 {
 
                                     case 0: // CONTEXT[0] key diversification algorithm OID
-                                        keyDiversificationOID = DerObjectIdentifier.GetInstance(taggedObject.getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER));
+                                        keyDiversificationOID = DerObjectIdentifier.GetInstance(taggedObject.GetObject());// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER));
                                         result.CryptoSettings.SetKeyDiversificationOID(keyDiversificationOID);
                                         break;
 
                                     case 1: // CONTEXT[1] EC Algorithm OID
-                                        ecAlgorithmOID = DerObjectIdentifier.GetInstance(taggedObject.getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER));
-                                        result.CryptoSettings. .setKeyAgreementCipherOID(ecAlgorithmOID); // will fail if algorithm isn't known in AlgorithmSpecCollection.
+                                        ecAlgorithmOID = DerObjectIdentifier.GetInstance(taggedObject.GetObject());// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER));
+                                        result.CryptoSettings.SetKeyAgreementCipherOID(ecAlgorithmOID); // will fail if algorithm isn't known in AlgorithmSpecCollection.
                                         break;
 
                                     case 2:
@@ -291,17 +289,19 @@ namespace SAFESealing
                                 break;
 
                             default:
-                                throw new Exception("ASN.1 class " + entry.getClass().getSimpleName() + " not handled"); //@IMPROVE
+                                throw new Exception("ASN.1 class " + entry.GetType().Name + " not handled"); //@IMPROVE
                             }
                         }
                     }
+
                 //# authentication part parsing
                 if (authPart != null)
                 {
 
-                    var apseq = (DLSequence) authPart.getBaseUniversal(true, BERTags.SEQUENCE);
+                    //var apseq = (DLSequence) authPart.getBaseUniversal(true, BERTags.SEQUENCE);
+                    var apseq = Asn1Sequence.GetInstance(authPart.GetObject());
 
-                    if (apseq.size() > 0)
+                    if (apseq.Count > 0)
                     {
                     //@IMPROVEMENT authPart parsing for later versions.
                     }

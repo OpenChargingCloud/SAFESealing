@@ -41,6 +41,11 @@ namespace SAFESealing
             this.KeyAgreementProtocol         = LookupValidatedByOID(oid, AlgorithmSpec.CryptoTypes.KEY_AGREEMENT);
         }
 
+        public void SetKeyAgreementCipherOID(DerObjectIdentifier oid)
+        {
+            this.KeyAgreementCipher           = LookupValidatedByOID(oid, AlgorithmSpec.CryptoTypes.ELLIPTIC_CURVE);
+        }
+
         public void SetKeyDiversificationOID(DerObjectIdentifier oid)
         {
             this.KeyDiversificationAlgorithm  = LookupValidatedByOID(oid, AlgorithmSpec.CryptoTypes.DIGEST);

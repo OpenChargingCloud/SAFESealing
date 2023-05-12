@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Text;
+﻿using System.IO.Compression;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
+
+using Org.BouncyCastle.Crypto.Parameters;
 
 
 namespace SAFESealing
@@ -13,23 +9,30 @@ namespace SAFESealing
     public class SAFESeal
     {
 
-        private CryptoFactory                cryptoFactory;
-        private TransportFormatConverter     formatConverter;
-        private AsymmetricEncryptionWithIIP  asymmetricLayer;
+        private readonly ICryptoFactory                cryptoFactory;
+        private          TransportFormatConverter      formatConverter;
+        private          IAsymmetricEncryptionWithIIP  asymmetricLayer;
 
-        public  Boolean                      KeyAgreementMode    { get; set; }  // flag shorthand for NONE or ECDHE. later versions may use an enum.
-        public  Boolean                      CompressionMode     { get; set; }  // flag shorthand for NONE or ZLIB.  later versions may use an enum.
+        public  Boolean  KeyAgreementMode    { get; set; }  // flag shorthand for NONE or ECDHE. later versions may use an enum.
+        public  Boolean  CompressionMode     { get; set; }  // flag shorthand for NONE or ZLIB.  later versions may use an enum.
 
 
-        public SAFESeal(CryptoFactory cf)
+
+        public void SetKeyAgreementMode(Boolean keyAgreementUsed)
+        {
+            this.KeyAgreementMode  = keyAgreementUsed;
+            this.CompressionMode   = false;
+            this.formatConverter   = new TransportFormatConverter();
+        }
+
+
+        public SAFESeal(ICryptoFactory CryptoFactory)
         {
 
-            this.cryptoFactory     = cf;
+            this.cryptoFactory     = CryptoFactory;
+            this.formatConverter   = new TransportFormatConverter();
             this.KeyAgreementMode  = false;
             this.CompressionMode   = false;
-
-            formatConverter = new TransportFormatConverter();
-
 
         }
 
@@ -42,10 +45,10 @@ namespace SAFESealing
         /// <param name="RecipientKeys">recipient public key(s)</param>
         /// <param name="UniqueID">a unique ID to be provided e.g. from a monotonic counter</param>
         /// <returns>wrapped and sealed message</returns>
-        public Byte[] Seal(Byte[]       ContentToSeal,
-                           PrivateKey   SenderKey,
-                           PublicKey[]  RecipientKeys,
-                           Int64        UniqueID)
+        public Byte[] Seal(Byte[]                              ContentToSeal,
+                           ECPrivateKeyParameters              SenderKey,
+                           IEnumerable<ECPublicKeyParameters>  RecipientKeys,
+                           Int64                               UniqueID)
         {
 
             InternalTransportTuple itt;
@@ -69,7 +72,7 @@ namespace SAFESealing
                 var privateKeyLength = UInt32.Parse(match.Groups[1].Value);
                 switch (privateKeyLength)
                 {
-                    case 1024: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA1024); break;
+                    //case 1024: asymmetricLayer = new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA1024); break;
                     case 2048: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA2048); break;
                     case 4096: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA4096); break;
                     default:
@@ -93,15 +96,15 @@ namespace SAFESealing
             }
 
             // perform asymmetric crypto, symmetric crypto, and padding
-            itt.EncryptedData  = asymmetricLayer.padEncryptAndPackage(payload,
+            itt.EncryptedData  = asymmetricLayer.PadEncryptAndPackage(payload,
                                                                       RecipientKeys,
                                                                       SenderKey,
                                                                       itt.KeyDiversificationData);
 
-            itt.CryptoIV       = asymmetricLayer.getSymmetricIV();
+            itt.CryptoIV       = asymmetricLayer.SymmetricIV;
 
             // format the tuple for transport
-            return formatConverter.wrapForTransport(itt);
+            return formatConverter.WrapForTransport(itt);
 
         }
 
@@ -116,26 +119,14 @@ namespace SAFESealing
            * @param recipientKey    a {@link PrivateKey} object
            * @param senderPublicKey a {@link PublicKey} object
            * @return payload data, when everything went OK and the integrity has been validated.
-           * @throws BadPaddingException                the integrity validation has failed.
-           * @throws NoSuchProviderException            if crypto provider is unavailable
-           * @throws NoSuchAlgorithmException           if algorithm could not be found
-           * @throws InvalidAlgorithmParameterException if the algorithm was called with invalid parameters
-           * @throws NoSuchPaddingException             if the padding could not be found
-           * @throws BadPaddingException                if the padding fails
-           * @throws InvalidKeyException                if the key is invalid
-           * @throws InvalidKeySpecException            if the key is invalid
-           * @throws IllegalBlockSizeException          if key and algorithm don't match in regard to size.
-           * @throws IOException                        if IO errors occur
-           * @throws ShortBufferException               if target buffer is too small
            */
-        public Byte[] Reveal(Byte[]      sealedInput,
-                             PrivateKey  recipientKey,
-                             PublicKey   senderPublicKey) // is one sender public key enough if several were used in sending?
+        public Byte[] Reveal(Byte[]                  sealedInput,
+                             ECPrivateKeyParameters  recipientKey,
+                             ECPublicKeyParameters   senderPublicKey) // is one sender public key enough if several were used in sending?
         {
 
-            InternalTransportTuple tuple = formatConverter.UnwrapTransportFormat(sealedInput);
-
-            var compressionOID = tuple.CryptoSettings.Compression?.OID!;
+            var tuple           = formatConverter.UnwrapTransportFormat(sealedInput);
+            var compressionOID  = tuple.CryptoSettings.Compression?.OID!;
 
             if (compressionOID.Equals(AlgorithmSpecCollection.COMPRESSION_GZIP.OID))
                 CompressionMode = true;
@@ -155,19 +146,21 @@ namespace SAFESealing
             {
                 switch (tuple.CryptoSettings.EncryptionKeySize)
                 {
-                    case 1024: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA1024); break;
+                    //case 1024: asymmetricLayer = new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA1024); break;
                     case 2048: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA2048); break;
                     case 4096: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA4096); break;
                     default: throw new Exception("Specified key size not supported");
                 }
             }
 
-            var payload = asymmetricLayer.decryptAndVerify(tuple.EncryptedData, senderPublicKey, recipientKey, tuple.KeyDiversificationData, tuple.CryptoIV);
+            var payload = asymmetricLayer.DecryptAndVerify(tuple.EncryptedData,
+                                                           senderPublicKey,
+                                                           recipientKey,
+                                                           tuple.KeyDiversificationData,
+                                                           tuple.CryptoIV);
 
             if (CompressionMode == true)
-            {
-                payload = inflateZLIBcompressedData(payload);
-            }
+                payload = InflateZLIBcompressedData(payload);
 
             return payload;
 
@@ -180,35 +173,52 @@ namespace SAFESealing
         /// </summary>
         /// <param name="Payload">Data to decompress/inflate</param>
         /// <returns>Decompressed/inflated data</returns>
-        private Byte[] inflateZLIBcompressedData(Byte[] Payload)
+        private Byte[] InflateZLIBcompressedData(Byte[] compressedData)
         {
 
-            var inflater   = new Inflater(true); // nowrap is important for our use case.
+            Byte[] decompressedData;
 
-            var inputSize  = Payload.Length;
-            // measuring the required input size
-            int outputSize;
-            int tmpSize    = 0;
-            do
+            using (var compressedStream = new MemoryStream(compressedData))
             {
-                tmpSize += inputSize; // try multiple times with increasing buffer size
-                inflater.setInput(Payload);
-
-                var tmp = new Byte[tmpSize]; // heuristics here.
-                outputSize = inflater.inflate(tmp);
-                if (outputSize == 0)
-                    throw new Exception("Input compression level not handled");
-                inflater.reset();
+                using (var deflateStream = new DeflateStream(compressedStream, System.IO.Compression.CompressionMode.Decompress))
+                {
+                    using (var decompressedStream = new MemoryStream())
+                    {
+                        deflateStream.CopyTo(decompressedStream);
+                        decompressedData = decompressedStream.ToArray();
+                    }
+                }
             }
-            while (tmpSize == outputSize); // if the temp buffer was completely full, we need to try again with a larger buffer.
 
-            // now performing actual decompression
-            var result = new byte[outputSize];
-            inflater.setInput(Payload);
-            inflater.inflate(result);
-            inflater.end();
+            return decompressedData;
 
-            return result;
+
+            //var inflater   = new Inflater(true); // nowrap is important for our use case.
+
+            //var inputSize  = Payload.Length;
+            //// measuring the required input size
+            //int outputSize;
+            //int tmpSize    = 0;
+            //do
+            //{
+            //    tmpSize += inputSize; // try multiple times with increasing buffer size
+            //    inflater.setInput(Payload);
+
+            //    var tmp = new Byte[tmpSize]; // heuristics here.
+            //    outputSize = inflater.inflate(tmp);
+            //    if (outputSize == 0)
+            //        throw new Exception("Input compression level not handled");
+            //    inflater.reset();
+            //}
+            //while (tmpSize == outputSize); // if the temp buffer was completely full, we need to try again with a larger buffer.
+
+            //// now performing actual decompression
+            //var result = new byte[outputSize];
+            //inflater.setInput(Payload);
+            //inflater.inflate(result);
+            //inflater.end();
+
+            //return result;
 
         }
 
@@ -227,33 +237,56 @@ namespace SAFESealing
         {
 
             var inputSize = rawPayload.Length;
-            var tmp       = new Byte[inputSize];
 
-            var deflater = new Deflater(Deflater.BEST_COMPRESSION, true); // NB: must set "nowrap"! The header fields are moot, but we may not use checksums.
-            deflater.setInput(rawPayload);
-            deflater.finish();
+            Byte[] compressedData;
 
-            byte[] payload;
-            var outputSize = deflater.deflate(tmp);
-            if (outputSize >= inputSize) // in this case, keep original size
+            using (var compressedStream = new MemoryStream())
             {
-                payload = rawPayload;
-                //itt.cryptoSettings.setCompressionOID(COMPRESSION_NONE.getOID());
+
+                using (var deflateStream = new DeflateStream(compressedStream, CompressionLevel.SmallestSize))
+                {
+                    deflateStream.Write(rawPayload, 0, rawPayload.Length);
+                }
+
+                compressedData = compressedStream.ToArray();
+
+            }
+
+            if (compressedData.Length < inputSize)
+            {
+                //itt.cryptoSettings.setCompressionOID(COMPRESSION_GZIP.getOID());
+                return compressedData;
             }
             else
             {
-                payload = new Byte[outputSize];
-                Array.Copy(tmp, 0, payload, 0, outputSize);
-                //itt.cryptoSettings.setCompressionOID(COMPRESSION_GZIP.getOID());
+                //itt.cryptoSettings.setCompressionOID(COMPRESSION_NONE.getOID());
+                return rawPayload;
             }
 
-            deflater.end();
+            //var tmp      = new Byte[inputSize];
+            //var deflater = new Deflater(Deflater.BEST_COMPRESSION, true); // NB: must set "nowrap"! The header fields are moot, but we may not use checksums.
+            //deflater.setInput(rawPayload);
+            //deflater.finish();
 
-            return payload;
+            //byte[] payload;
+            //var outputSize = deflater.deflate(tmp);
+            //if (outputSize >= inputSize) // in this case, keep original size
+            //{
+            //    payload = rawPayload;
+            //    //itt.cryptoSettings.setCompressionOID(COMPRESSION_NONE.getOID());
+            //}
+            //else
+            //{
+            //    payload = new Byte[outputSize];
+            //    Array.Copy(tmp, 0, payload, 0, outputSize);
+            //    //itt.cryptoSettings.setCompressionOID(COMPRESSION_GZIP.getOID());
+            //}
+
+            //deflater.end();
+
+            //return payload;
 
         }
-
-
 
     }
 

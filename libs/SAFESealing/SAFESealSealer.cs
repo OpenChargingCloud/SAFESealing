@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using Org.BouncyCastle.Crypto.Parameters;
+using System.Diagnostics;
 using System.Xml;
 
 namespace SAFESealing
@@ -9,6 +10,8 @@ namespace SAFESealing
     /// </summary>
     public class SAFESealSealer
     {
+
+        private CryptoFactoryImpl cryptoFactory;
 
         private Boolean KeyAgreementMode { get; set; }
         //private CryptoFactoryImpl cryptoFactory;
@@ -30,7 +33,7 @@ namespace SAFESealing
             //    securityProvider = new BouncyCastleProvider();
             //    Security.addProvider(securityProvider);
             //}
-            //this.cryptoFactory = new CryptoFactoryImpl(securityProvider);
+            this.cryptoFactory = new CryptoFactoryImpl(); // securityProvider);
 
         }
 
@@ -63,10 +66,10 @@ namespace SAFESealing
          * @return sealed message
          * @throws javax.crypto.BadPaddingException     if the sealing failed
          */
-        public Byte[] Seal(PrivateKey  SenderPrivateKey,
-                           PublicKey   SingleRecipientPublicKey,
-                           Byte[]      PayloadToSeal,
-                           Int64       UniqueID)
+        public Byte[] Seal(ECPrivateKeyParameters  SenderPrivateKey,
+                           ECPublicKeyParameters   SingleRecipientPublicKey,
+                           Byte[]                  PayloadToSeal,
+                           Int64                   UniqueID)
         {
 
             try
@@ -77,7 +80,7 @@ namespace SAFESealing
                     CompressionMode  = CompressionMode
                 };
 
-                var publicKeys = new PublicKey[1];
+                var publicKeys = new ECPublicKeyParameters[1];
                 publicKeys[0]  = SingleRecipientPublicKey;
                 var payload    = sealer.Seal(PayloadToSeal, SenderPrivateKey, publicKeys, UniqueID);
 
@@ -88,6 +91,9 @@ namespace SAFESealing
             {
                 Debug.WriteLine(e);
             }
+
+            return Array.Empty<Byte>();
+
         }
 
 

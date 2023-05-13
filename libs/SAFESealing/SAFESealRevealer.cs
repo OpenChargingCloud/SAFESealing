@@ -71,8 +71,10 @@ namespace SAFESealing
             try
             {
 
-                var revealer = new SAFESeal(cryptoFactory);
-                revealer.SetKeyAgreementMode(keyAgreement);
+                var revealer = new SAFESeal(
+                                   cryptoFactory,
+                                   keyAgreement
+                               );
 
                 return revealer.Reveal(sealedMessage,
                                        recipientPrivateKey,

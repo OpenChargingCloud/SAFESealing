@@ -16,7 +16,7 @@ namespace SAFESealing
         #region Data
 
         private readonly ICryptoFactory                 cryptoFactory;
-        private          TransportFormatConverter       formatConverter;
+        private readonly TransportFormatConverter       formatConverter;
         private          IAsymmetricEncryptionWithIIP?  asymmetricLayer;
 
         #endregion
@@ -27,34 +27,28 @@ namespace SAFESealing
         /// Flag shorthand for NONE or ZLIB.
         /// Later versions may use an enum.
         /// </summary>
-        public  Boolean  CompressionMode     { get; set; }
+        public  Boolean  CompressionMode     { get; private set; }
 
         /// <summary>
         /// Flag shorthand for NONE or ECDHE.
         /// Later versions may use an enum.
         /// </summary>
-        public  Boolean  KeyAgreementMode    { get; set; }
-
-
-        public void SetKeyAgreementMode(Boolean KeyAgreementUsed)
-        {
-            this.KeyAgreementMode  = KeyAgreementUsed;
-            this.CompressionMode   = false;
-            this.formatConverter   = new TransportFormatConverter();
-        }
+        public  Boolean  KeyAgreementMode    { get;}
 
         #endregion
 
 
         #region Constructor(s)
 
-        public SAFESeal(ICryptoFactory CryptoFactory)
+        public SAFESeal(ICryptoFactory  CryptoFactory,
+                        Boolean         KeyAgreementMode,
+                        Boolean         CompressionMode   = false)
         {
 
             this.cryptoFactory     = CryptoFactory;
             this.formatConverter   = new TransportFormatConverter();
-            this.KeyAgreementMode  = false;
-            this.CompressionMode   = false;
+            this.KeyAgreementMode  = KeyAgreementMode;
+            this.CompressionMode   = CompressionMode;
 
         }
 

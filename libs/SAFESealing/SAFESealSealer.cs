@@ -64,10 +64,11 @@ namespace SAFESealing
             try
             {
 
-                var sealer = new SAFESeal(cryptoFactory) {
-                    KeyAgreementMode = KeyAgreementMode,
-                    CompressionMode  = CompressionMode
-                };
+                var sealer = new SAFESeal(
+                                 cryptoFactory,
+                                 KeyAgreementMode,
+                                 CompressionMode
+                             );
 
                 var publicKeys  = new ECPublicKeyParameters[1];
                 publicKeys[0]   = SingleRecipientPublicKey;

@@ -1,4 +1,5 @@
-﻿#region Usings
+﻿
+#region Usings
 
 using System.Diagnostics;
 
@@ -105,18 +106,17 @@ namespace SAFESealing
         #region Seal(RawPrivateKeySender, RawPublicKeySingleRecipient, Cleartext, UniqueId)  // Do not use!
 
         /// <summary>
-        /// Seal for multiple recipients. Not available in version 1.
-        /// For use with key agreement protocol.
+        /// Seal a cleartext, encrypting and protecting it for transport.
         /// </summary>
-        /// <param name="RawPrivateKeySender">A private key of the sender as an array of bytes.</param>
-        /// <param name="RawPublicKeySingleRecipient">A public key of the single recipient as an array of bytes.</param>
+        /// <param name="RawPrivateKeySender">A private key of a sender as an array of bytes.</param>
+        /// <param name="RawPublicKeySingleRecipient">A public key of a single recipient as an array of bytes.</param>
         /// <param name="Cleartext">A cleartext to be sealed for transport.</param>
         /// <param name="UniqueId">An unique identification assigned to this message. A monotonic counter or similar source is recommended.</param>
         /// <returns>A sealed message.</returns>
-        public Byte[] Seal(Byte[]  RawPrivateKeySender,
-                           Byte[]  RawPublicKeySingleRecipient,
-                           Byte[]  Cleartext,
-                           Int64   UniqueId)
+        public Byte[] Seal(Byte[] RawPrivateKeySender,
+                           Byte[] RawPublicKeySingleRecipient,
+                           Byte[] Cleartext,
+                           Int64  UniqueId)
         {
             return Array.Empty<Byte>();
         }

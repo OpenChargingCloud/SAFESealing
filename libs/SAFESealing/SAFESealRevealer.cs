@@ -1,94 +1,112 @@
-﻿using Org.BouncyCastle.Bcpg;
-using Org.BouncyCastle.Crypto.Parameters;
+﻿
+#region Usings
+
 using System.Diagnostics;
+
+using Org.BouncyCastle.Crypto.Parameters;
+
+#endregion
 
 namespace SAFESealing
 {
 
     /// <summary>
-    /// facade for validating (and extracting) sealed OCMF message according to SAFE e.V. specification
+    /// Verifying and extracting sealed OCMF message according to SAFE e.V. specifications.
     /// </summary>
     public class SAFESealRevealer
     {
 
-        private Boolean keyAgreement;
-        private CryptoFactoryImpl cryptoFactory;
+        #region Data
 
-        //public Boolean UseECDHE { get; }
+        private readonly CryptoFactoryImpl cryptoFactory;
 
-        //public SAFESealRevealer(Boolean UseECDHE = false)
-        //{
-        //    this.UseECDHE = UseECDHE;
-        //}
+        #endregion
 
+        #region Properties
 
+        /// <summary>
+        /// Flag shorthand for NONE (==RSA+IIP) or ECDHE.
+        /// Later versions may use an enum.
+        /// </summary>
+        public Boolean  KeyAgreementMode    { get; }
 
-        /**
-         * constructor with default algorithm setup.
-         *
-         * @param useKeyAgreement true if ECDHE key agreement is to be used, false for RSA+IIP
-         */
-        public SAFESealRevealer(Boolean useKeyAgreement)
+        #endregion
+
+        #region Constructor(s)
+
+        /// <summary>
+        /// Create a new SAFE seal revealer.
+        /// </summary>
+        /// <param name="KeyAgreementMode">Flag shorthand for NONE (==RSA+IIP) or ECDHE. Later versions may use an enum.</param>
+        public SAFESealRevealer(Boolean KeyAgreementMode = false)
         {
-            this.keyAgreement   = useKeyAgreement;
-            this.cryptoFactory  = new CryptoFactoryImpl();
+
+            this.cryptoFactory     = new CryptoFactoryImpl();
+
+            this.KeyAgreementMode  = KeyAgreementMode;
+
         }
 
-        /**
-         * <p>reveal.</p>
-         *
-         * @param rawPublicKeySingleSender an array of {@link byte} objects
-         * @param rawPrivateKeyRecipient an array of {@link byte} objects
-         * @param sealedMessage an array of {@link byte} objects
-         * @return an array of {@link byte} objects
-         * @throws javax.crypto.BadPaddingException if any.
-         */
-        public Byte[] Reveal(Byte[] rawPublicKeySingleSender,
-                             Byte[] rawPrivateKeyRecipient,
-                             Byte[] sealedMessage)
-        {
-            // todo perform deterministic conversion from bytearrays to keys.
-            // then call the "real" function
-            throw new Exception();
-        }
+        #endregion
 
 
-        /**
-         * reveal the validated contents of the sealed message.
-         *
-         * @param singleSenderPublicKey the public key of the sender
-         *                              // additional public keys of different recipients are possible.
-         * @param recipientPrivateKey   the private key of the recipient
-         * @param sealedMessage         the sealed message
-         * @return validated payload data which was sealed
-         * @throws javax.crypto.BadPaddingException if processing failed in some way, especially if the seal was not intact anymore.
-         *                             This
-         */
-        public Byte[] Reveal(ECPublicKeyParameters   singleSenderPublicKey,
-                             ECPrivateKeyParameters  recipientPrivateKey,
-                             Byte[]                  sealedMessage)
+        #region Reveal(SenderPublicKey, RecipientPrivateKey, SealedMessage)
+
+        /// <summary>
+        /// Verify and reveal a sealed message.
+        /// </summary>
+        /// <param name="SenderPublicKey">A sender public key.</param>
+        /// <param name="RecipientPrivateKey">A private key of a recipient.</param>
+        /// <param name="SealedMessage">A sealed message.</param>
+        /// <returns>The verified cleartext.</returns>
+        public Byte[] Reveal(ECPublicKeyParameters   SenderPublicKey,
+                             ECPrivateKeyParameters  RecipientPrivateKey,
+                             Byte[]                  SealedMessage)
         {
             try
             {
 
-                var revealer = new SAFESeal(
-                                   cryptoFactory,
-                                   keyAgreement
-                               );
+                return new SAFESeal(
+                           cryptoFactory,
+                           KeyAgreementMode
+                       ).
 
-                return revealer.Reveal(sealedMessage,
-                                       recipientPrivateKey,
-                                       singleSenderPublicKey);
+                       Reveal(SealedMessage,
+                              RecipientPrivateKey,
+                              SenderPublicKey);
 
             }
             catch (Exception e)
             {
-                Debug.WriteLine(e); // hiding the specific exception to prevent "padding oracle" type attacks, and simplify usage.
+                // Hiding the specific exception to prevent "padding oracle" type attacks, and simplify usage.
+                Debug.WriteLine(e);
             }
 
             return Array.Empty<Byte>();
 
         }
+
+        #endregion
+
+        #region Reveal(RawPublicKeySender, RawPrivateKeyRecipient, SealedMessage)
+
+        /// <summary>
+        /// Verify and reveal a sealed message.
+        /// </summary>
+        /// <param name="RawPublicKeySender">A public key of a sender as an array of bytes.</param>
+        /// <param name="RawPrivateKeyRecipient">A private key of a recipient as an array of bytes.</param>
+        /// <param name="SealedMessage">A sealed message.</param>
+        /// <returns>The verified cleartext.</returns>
+        public Byte[] Reveal(Byte[] RawPublicKeySender,
+                             Byte[] RawPrivateKeyRecipient,
+                             Byte[] SealedMessage)
+        {
+            // todo perform deterministic conversion from bytearrays to keys.
+            // then call the "real" function
+            return Array.Empty<Byte>();
+        }
+
+        #endregion
 
     }
 

@@ -1,30 +1,52 @@
-﻿using System.IO.Compression;
+﻿#region Usings
+
+using System.IO.Compression;
 using System.Text.RegularExpressions;
 
 using Org.BouncyCastle.Crypto.Parameters;
 
+#endregion
 
 namespace SAFESealing
 {
+
     public class SAFESeal
     {
+
+        #region Data
 
         private readonly ICryptoFactory                cryptoFactory;
         private          TransportFormatConverter      formatConverter;
         private          IAsymmetricEncryptionWithIIP  asymmetricLayer;
 
-        public  Boolean  KeyAgreementMode    { get; set; }  // flag shorthand for NONE or ECDHE. later versions may use an enum.
-        public  Boolean  CompressionMode     { get; set; }  // flag shorthand for NONE or ZLIB.  later versions may use an enum.
+        #endregion
+
+        #region Properties
+
+        /// <summary>
+        /// Flag shorthand for NONE or ZLIB.
+        /// Later versions may use an enum.
+        /// </summary>
+        public  Boolean  CompressionMode     { get; set; }
+
+        /// <summary>
+        /// Flag shorthand for NONE or ECDHE.
+        /// Later versions may use an enum.
+        /// </summary>
+        public  Boolean  KeyAgreementMode    { get; set; }
 
 
-
-        public void SetKeyAgreementMode(Boolean keyAgreementUsed)
+        public void SetKeyAgreementMode(Boolean KeyAgreementUsed)
         {
-            this.KeyAgreementMode  = keyAgreementUsed;
+            this.KeyAgreementMode  = KeyAgreementUsed;
             this.CompressionMode   = false;
             this.formatConverter   = new TransportFormatConverter();
         }
 
+        #endregion
+
+
+        #region Constructor(s)
 
         public SAFESeal(ICryptoFactory CryptoFactory)
         {
@@ -36,19 +58,23 @@ namespace SAFESealing
 
         }
 
+        #endregion
+
+
+        #region Seal(ContentToSeal, SenderKey, RecipientKeys, UniqueId)
 
         /// <summary>
         /// Seal contents: perform calculation of ephemeral key, padding, encryption, and formatting for transport.
         /// </summary>
-        /// <param name="ContentToSeal">payload content for sealed transport</param>
-        /// <param name="SenderKey">sender private key (caller's key)</param>
-        /// <param name="RecipientKeys">recipient public key(s)</param>
-        /// <param name="UniqueID">a unique ID to be provided e.g. from a monotonic counter</param>
-        /// <returns>wrapped and sealed message</returns>
+        /// <param name="ContentToSeal">A payload content for sealed transport.</param>
+        /// <param name="SenderKey">A sender private key (caller's key).</param>
+        /// <param name="RecipientKeys">A recipient public key(s).</param>
+        /// <param name="UniqueId">A unique identification to be provided e.g. from a monotonic counter.</param>
+        /// <returns>The wrapped and sealed message.</returns>
         public Byte[] Seal(Byte[]                              ContentToSeal,
                            ECPrivateKeyParameters              SenderKey,
                            IEnumerable<ECPublicKeyParameters>  RecipientKeys,
-                           Int64                               UniqueID)
+                           Int64                               UniqueId)
         {
 
             InternalTransportTuple itt;
@@ -57,10 +83,11 @@ namespace SAFESealing
             {
                 asymmetricLayer = new ECDHEWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.AES256ECB);
                 itt             = new InternalTransportTuple(true); // ECDHE+AES...
-                itt.SetDiversification(UniqueID);
+                itt.SetDiversification(UniqueId);
             }
             else
             {
+
                 // lacking a proper API, we do this the factual way:
                 var description               = SenderKey.ToString();
                 var keyLengthFromDescription  = new Regex(@".+RSA private CRT key,\s+(\d{4})\sbits$", RegexOptions.Multiline);
@@ -70,14 +97,12 @@ namespace SAFESealing
                     throw new Exception("Could not determine key size");
 
                 var privateKeyLength = UInt32.Parse(match.Groups[1].Value);
-                switch (privateKeyLength)
-                {
-                    //case 1024: asymmetricLayer = new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA1024); break;
-                    case 2048: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA2048); break;
-                    case 4096: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA4096); break;
-                    default:
-                        throw new Exception("Key of unsupported size " + privateKeyLength);
-                }
+                asymmetricLayer = privateKeyLength switch {
+                  //1024 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA1024),  //ahzf: RSA1024 is NOT DEFINED within AlgorithmSpecCollection!!?
+                    2048 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA2048),
+                    4096 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA4096),
+                    _ => throw new Exception("Key of unsupported size " + privateKeyLength),
+                };
 
                 itt = new InternalTransportTuple(false); // RSA
                 itt.CryptoSettings.EncryptionKeySize = privateKeyLength;
@@ -86,16 +111,12 @@ namespace SAFESealing
             }
 
             byte[] payload;
-            if (CompressionMode == false)
-            {
-                payload = ContentToSeal;
-            }
-            else // if compression is activated, perform compression and set respective flag
-            {
-                payload = TryToCompress(ContentToSeal, itt);
-            }
 
-            // perform asymmetric crypto, symmetric crypto, and padding
+            payload = CompressionMode
+                          ? ContentToSeal
+                          : TryToCompress(ContentToSeal, itt); // if compression is activated, perform compression and set respective flag
+
+            // Perform asymmetric crypto, symmetric crypto, and padding
             itt.EncryptedData  = asymmetricLayer.PadEncryptAndPackage(payload,
                                                                       RecipientKeys,
                                                                       SenderKey,
@@ -108,64 +129,73 @@ namespace SAFESealing
 
         }
 
+        #endregion
 
+        #region Reveal(SealedInput, RecipientKey, SenderPublicKey)
 
-        /**
-           * carefully check the sealing, unseal, and return payload data.
-           * performs transport unwrapping, calculation of ephemeral key, decryption, and integrity validation.
-           * The most important Exception is the BadPaddingException which signals the integrity validation has failed.
-           *
-           * @param sealedInput     an array of {@link byte} objects
-           * @param recipientKey    a {@link PrivateKey} object
-           * @param senderPublicKey a {@link PublicKey} object
-           * @return payload data, when everything went OK and the integrity has been validated.
-           */
-        public Byte[] Reveal(Byte[]                  sealedInput,
-                             ECPrivateKeyParameters  recipientKey,
-                             ECPublicKeyParameters   senderPublicKey) // is one sender public key enough if several were used in sending?
+        /// <summary>
+        /// Carefully check the sealing, unseal, and return payload data.
+        /// Performs transport unwrapping, calculation of ephemeral key, decryption, and integrity validation.
+        /// The most important Exception is the BadPaddingException which signals the integrity validation has failed.
+        /// </summary>
+        /// <param name="SealedInput">An array of bytes.</param>
+        /// <param name="RecipientKey">A private key.</param>
+        /// <param name="SenderPublicKey">A public key.</param>
+        /// <returns>The cleartext, when everything went OK and the integrity has been validated.</returns>
+        public Byte[] Reveal(Byte[]                  SealedInput,
+                             ECPrivateKeyParameters  RecipientKey,
+                             ECPublicKeyParameters   SenderPublicKey) // is one sender public key enough if several were used in sending?
         {
 
-            var tuple           = formatConverter.UnwrapTransportFormat(sealedInput);
-            var compressionOID  = tuple.CryptoSettings.Compression?.OID!;
+            var tuple           = formatConverter.UnwrapTransportFormat(SealedInput);
 
-            if (compressionOID.Equals(AlgorithmSpecCollection.COMPRESSION_GZIP.OID))
+            #region Compression settings
+
+            var compressionOID  = (tuple.CryptoSettings.Compression?.OID) ?? throw new Exception("Invalid compression information!");
+
+            if      (compressionOID.Equals(AlgorithmSpecCollection.COMPRESSION_GZIP.OID))
                 CompressionMode = true;
 
             else if (compressionOID.Equals(AlgorithmSpecCollection.COMPRESSION_NONE.OID))
-                CompressionMode = false; // do nothing, ignore.
+                CompressionMode = false;
 
             else
-                throw new Exception("invalid compression");
+                throw new Exception("Invalid or unknown compression!");
+
+            #endregion
+
 
             // @IMPROVEMENT for later versions: allow to for a more flexible selection of algorithms.
-            if (KeyAgreementMode)
-            {
-                asymmetricLayer = new ECDHEWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.AES256ECB);
-            }
-            else
-            {
-                switch (tuple.CryptoSettings.EncryptionKeySize)
-                {
-                    //case 1024: asymmetricLayer = new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA1024); break;
-                    case 2048: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA2048); break;
-                    case 4096: asymmetricLayer = new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA4096); break;
-                    default: throw new Exception("Specified key size not supported");
-                }
-            }
+            asymmetricLayer = KeyAgreementMode
+
+                                  ? new ECDHEWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.AES256ECB)
+
+                                  : tuple.CryptoSettings.EncryptionKeySize switch {
+
+                                      //1024 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA1024),  //ahzf: RSA1024 is NOT DEFINED within AlgorithmSpecCollection!!?
+                                        2048 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA2048),
+                                        4096 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA4096),
+
+                                        _    => throw new Exception("Specified key size not supported"),
+
+                                    };
 
             var payload = asymmetricLayer.DecryptAndVerify(tuple.EncryptedData,
-                                                           senderPublicKey,
-                                                           recipientKey,
+                                                           SenderPublicKey,
+                                                           RecipientKey,
                                                            tuple.KeyDiversificationData,
                                                            tuple.CryptoIV);
 
-            if (CompressionMode == true)
-                payload = InflateZLIBcompressedData(payload);
-
-            return payload;
+            return CompressionMode
+                       ? InflateZLIBcompressedData(payload)
+                       : payload;
 
         }
 
+        #endregion
+
+
+        #region InflateZLIBcompressedData(CompressedData)
 
         /// <summary>
         /// Try to decompress if we've got compressed data.
@@ -173,12 +203,12 @@ namespace SAFESealing
         /// </summary>
         /// <param name="Payload">Data to decompress/inflate</param>
         /// <returns>Decompressed/inflated data</returns>
-        private Byte[] InflateZLIBcompressedData(Byte[] compressedData)
+        private Byte[] InflateZLIBcompressedData(Byte[] CompressedData)
         {
 
             Byte[] decompressedData;
 
-            using (var compressedStream = new MemoryStream(compressedData))
+            using (var compressedStream = new MemoryStream(CompressedData))
             {
                 using (var deflateStream = new DeflateStream(compressedStream, System.IO.Compression.CompressionMode.Decompress))
                 {
@@ -222,21 +252,23 @@ namespace SAFESealing
 
         }
 
+        #endregion
 
-        /*
-         * Try to apply ZLIB compression.
-         * Important: Zlib wrapper fields must not be used/sent.
-         * That also implies we always use the same settings in this context: BEST_COMPRESSION, nowrap.
-         * @param rawPayload content to compress
-         * @param itt settings, where we'd note the compression algorithm if any.
-         * @return payload for further processing (compressed or not)
-         * @throws NoSuchAlgorithmException if algorithm lookup fails.
-         */
-        private static Byte[] TryToCompress(Byte[]                  rawPayload,
-                                            InternalTransportTuple  itt)
+        #region TryToCompress(RAWPayload, ITT)
+
+        /// <summary>
+        /// Try to apply ZLIB compression.
+        /// Important: Zlib wrapper fields must not be used/sent.
+        /// That also implies we always use the same settings in this context: BEST_COMPRESSION, nowrap.
+        /// </summary>
+        /// <param name="RAWPayload">Content to compress</param>
+        /// <param name="ITT">ITT settings, where we'd note the compression algorithm if any.</param>
+        /// <returns>Payload for further processing (compressed or not)</returns>
+        private static Byte[] TryToCompress(Byte[]                  RAWPayload,
+                                            InternalTransportTuple  ITT)
         {
 
-            var inputSize = rawPayload.Length;
+            var inputSize = RAWPayload.Length;
 
             Byte[] compressedData;
 
@@ -245,7 +277,7 @@ namespace SAFESealing
 
                 using (var deflateStream = new DeflateStream(compressedStream, CompressionLevel.SmallestSize))
                 {
-                    deflateStream.Write(rawPayload, 0, rawPayload.Length);
+                    deflateStream.Write(RAWPayload, 0, RAWPayload.Length);
                 }
 
                 compressedData = compressedStream.ToArray();
@@ -260,7 +292,7 @@ namespace SAFESealing
             else
             {
                 //itt.cryptoSettings.setCompressionOID(COMPRESSION_NONE.getOID());
-                return rawPayload;
+                return RAWPayload;
             }
 
             //var tmp      = new Byte[inputSize];
@@ -287,6 +319,8 @@ namespace SAFESealing
             //return payload;
 
         }
+
+        #endregion
 
     }
 

@@ -11,17 +11,17 @@ namespace SAFESealing
     {
 
 
-        public Cipher? GetCipherFromCipherSpec(AlgorithmSpec algorithmSpec)
+        public Cipher? GetCipherFromCipherSpec(AlgorithmSpec AlgorithmSpec)
         {
 
-            switch (algorithmSpec.CryptoType)
+            switch (AlgorithmSpec.CryptoType)
             {
 
                 case AlgorithmSpec.CryptoTypes.CIPHER:
                 case AlgorithmSpec.CryptoTypes.DIGEST:
                     // we need special handling for RSA/ECB/NoPadding
-                    if (algorithmSpec.OID.Id.Equals(SharedConstants.OID_RSA_ECB.Id))
-                        return GetRSAECB(algorithmSpec);
+                    if (AlgorithmSpec.OID.Id.Equals(SharedConstants.OID_RSA_ECB.Id))
+                        return GetRSAECB(AlgorithmSpec);
 
                     // 1.3.132.1.12   for KEY_AGREEMENT
 

@@ -1,14 +1,7 @@
 ﻿using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.Intrinsics.Arm;
-using System.Runtime.Intrinsics.X86;
 using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SAFESealing
 {
@@ -22,6 +15,54 @@ namespace SAFESealing
 
     public class Cipher : IAsymmetricBlockCipher
     {
+
+        private ICryptoTransform aesCipher;
+
+        public Aes     AES          { get; }
+        public Byte[]  IV           { get; }
+        public Int32   BlockSize    { get; }
+
+        public Cipher(Aes AES)
+        {
+            this.AES        = AES;
+            this.IV         = AES.IV;
+            this.BlockSize  = AES.BlockSize / 8;
+        }
+
+
+        public void Init(CipherMode    Mode,
+                         KeyParameter  SecretKey,
+                         SecureRandom  SecureRandom)
+        {
+
+            this.AES.Key    = SecretKey.GetKey();
+            this.aesCipher  = this.AES.CreateEncryptor();
+
+        }
+
+        public Byte[] DoFinal(Byte[] Cleartext)
+        {
+            return aesCipher.TransformFinalBlock(Cleartext, 0, Cleartext.Length);
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
         public String AlgorithmName
         {
             get
@@ -53,30 +94,6 @@ namespace SAFESealing
         }
 
 
-        public System.Security.Cryptography.Aes AES { get; }
-
-        public Cipher(System.Security.Cryptography.Aes AES)
-        {
-            this.AES = AES;
-        }
-
-
-
-        public Int32 BlockSize
-        {
-            get
-            {
-                return this.AES.BlockSize / 8;
-            }
-        }
-
-        public Byte[] IV
-        {
-            get
-            {
-                return Array.Empty<Byte>();
-            }
-        }
 
         private IAsymmetricBlockCipher BC { get; }
 
@@ -85,9 +102,6 @@ namespace SAFESealing
             this.BC = BC;
         }
 
-
-
-
         public void Init(CipherMode Mode, KeyParameter secretKey)
         {
 
@@ -95,13 +109,6 @@ namespace SAFESealing
 
         }
 
-        private ICryptoTransform aesCipher;
-
-        public void Init(CipherMode Mode, KeyParameter secretKey, SecureRandom rng)
-        {
-            this.AES.Key  = secretKey.GetKey();
-            aesCipher     = this.AES.CreateEncryptor();
-        }
 
         public void Init(CipherMode Mode, KeyParameter secretKey, IvParameterSpec iv)
         {
@@ -127,10 +134,7 @@ namespace SAFESealing
 
 
 
-        public Byte[] DoFinal(Byte[] Cleartext)
-        {
-            return aesCipher.TransformFinalBlock(Cleartext, 0, Cleartext.Length);
-        }
+
 
 
         public Byte[] doFinal(Byte[] padded,

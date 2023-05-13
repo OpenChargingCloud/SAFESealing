@@ -55,16 +55,18 @@ namespace SAFESealing
         /// <summary>
         /// Constructor for Elliptic Curve Diffie-Hellman Ephemeral (ECDHE) IIP
         /// </summary>
-        /// <param name="spec">(symmetric) encryption algorithm to be used</param>
-        public ECDHEWithIntegrityPadding(ICryptoFactory CryptoFactory, AlgorithmSpec spec)
+        /// <param name="AlgorithmSpec">(symmetric) encryption algorithm to be used</param>
+        public ECDHEWithIntegrityPadding(ICryptoFactory  CryptoFactory,
+                                         AlgorithmSpec   AlgorithmSpec)
         {
 
-            this.algorithmSpec        = spec;
+            this.cryptoFactory        = CryptoFactory;
+            this.algorithmSpec        = AlgorithmSpec;
             this.rng                  = new SecureRandom();
             this.keyAgreement         = new ECDHBasicAgreement();
 
             // Cipher symmetricCipher = Cipher.getInstance("AES/ECB/NoPadding"); // default cipher
-            var symmetricCipher       = CryptoFactory.GetCipherFromCipherSpec(spec);
+            var symmetricCipher       = CryptoFactory.GetCipherFromCipherSpec(AlgorithmSpec);
             this.symmetricEncryption  = new SymmetricEncryptionWithIntegrityPadding(symmetricCipher, CryptoFactory); // default cipher spec
 
         }

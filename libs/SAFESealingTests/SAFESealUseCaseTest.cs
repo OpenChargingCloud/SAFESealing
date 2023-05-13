@@ -23,33 +23,39 @@ namespace SAFESealingTests
         private AsymmetricCipherKeyPair  rsaKeyPair;
 
 
+        [Test]
         public void UseCaseTestWithECDHE()
         {
 
             var testPayload  = Encoding.UTF8.GetBytes("SAFE eV");
-            var testUnique   = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var testUnique   = (Int64) 23; // DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            // ==== SENDER ====
-            // ---- perform sealing
+            // SENDER performs sealing
             var uwe              = new SAFESealSealer(true);
-            var sealedData       = uwe.Seal(senderPrivateKey, recipientPublicKey, testPayload, testUnique);
+            var sealedData       = uwe.Seal(senderPrivateKey,
+                                            recipientPublicKey,
+                                            testPayload,
+                                            testUnique);
 
-
-
-            // ==== RECIPIENT ====
-            // ---- perform revealing
+            // RECIPIENT performs revealing
             var revealer         = new SAFESealRevealer(true);
             var receivedPayload  = revealer.Reveal(senderPublicKey,
                                                    recipientPrivateKey,
                                                    sealedData);
 
-            // ---- test result
-            //Assert.AreEqual(testPayload, receivedPayload);
+            Assert.AreEqual(testPayload, receivedPayload);
 
         }
 
 
-        void GenerateECKeyPairs(String curveName)
+        [OneTimeSetUp]
+        public void Setup()
+        {
+            GenerateECKeyPairs("secp256r1");
+        }
+
+
+        public void GenerateECKeyPairs(String curveName)
         {
 
             //    // this is the relation between the two: the named ones are a special case
@@ -75,6 +81,7 @@ namespace SAFESealingTests
             this.recipientPublicKey     = (ECPublicKeyParameters)  keyPairB.Public;
 
         }
+
 
         public AsymmetricCipherKeyPair GenerateRSAKeyPair(int keySize)
         {

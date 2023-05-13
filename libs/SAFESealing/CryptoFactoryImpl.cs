@@ -3,7 +3,7 @@ using Org.BouncyCastle.Asn1.TeleTrust;
 using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
-
+using System.Security.Cryptography;
 
 namespace SAFESealing
 {
@@ -26,11 +26,13 @@ namespace SAFESealing
                     // 1.3.132.1.12   for KEY_AGREEMENT
 
                     // regular case
-
-                    //ahzf: C# does not support this!!!
                     //var cipher = Cipher.getInstance(algorithmSpec.getOID().getId(), securityProvider);
-                    //return cipher;
-                    return null;
+
+                    var aes = Aes.Create();
+                    aes.Mode    = System.Security.Cryptography.CipherMode.ECB;
+                    aes.Padding = PaddingMode.None;
+
+                    return new Cipher(aes);
 
             }
 

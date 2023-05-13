@@ -4,6 +4,9 @@ using Org.BouncyCastle.Security;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Intrinsics.Arm;
+using System.Runtime.Intrinsics.X86;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -19,22 +22,60 @@ namespace SAFESealing
 
     public class Cipher : IAsymmetricBlockCipher
     {
-        public string AlgorithmName => throw new NotImplementedException();
-
-        public String getAlgorithm()
-
+        public String AlgorithmName
         {
-            return "algo";
+            get
+            {
+                return "algo";
+            }
         }
 
-        public Int32 getBlockSize()
+
+        public void Init(Boolean            forEncryption,
+                         ICipherParameters  parameters)
         {
-            return 16;
+            throw new NotImplementedException();
         }
 
-        public Byte[] getIV()
+        public Int32 GetInputBlockSize()
         {
-            return Array.Empty<Byte>();
+            throw new NotImplementedException();
+        }
+
+        public Int32 GetOutputBlockSize()
+        {
+            throw new NotImplementedException();
+        }
+
+        public Byte[] ProcessBlock(Byte[] inBuf, Int32 inOff, Int32 inLen)
+        {
+            throw new NotImplementedException();
+        }
+
+
+        public System.Security.Cryptography.Aes AES { get; }
+
+        public Cipher(System.Security.Cryptography.Aes AES)
+        {
+            this.AES = AES;
+        }
+
+
+
+        public Int32 BlockSize
+        {
+            get
+            {
+                return this.AES.BlockSize / 8;
+            }
+        }
+
+        public Byte[] IV
+        {
+            get
+            {
+                return Array.Empty<Byte>();
+            }
         }
 
         private IAsymmetricBlockCipher BC { get; }
@@ -54,11 +95,12 @@ namespace SAFESealing
 
         }
 
+        private ICryptoTransform aesCipher;
+
         public void Init(CipherMode Mode, KeyParameter secretKey, SecureRandom rng)
         {
-
-
-
+            this.AES.Key  = secretKey.GetKey();
+            aesCipher     = this.AES.CreateEncryptor();
         }
 
         public void Init(CipherMode Mode, KeyParameter secretKey, IvParameterSpec iv)
@@ -85,9 +127,9 @@ namespace SAFESealing
 
 
 
-        public Byte[] doFinal(Byte[] dataToEncrypt)
+        public Byte[] DoFinal(Byte[] Cleartext)
         {
-            return Array.Empty<Byte>();
+            return aesCipher.TransformFinalBlock(Cleartext, 0, Cleartext.Length);
         }
 
 
@@ -104,25 +146,6 @@ namespace SAFESealing
 
 
 
-        public void Init(bool forEncryption, ICipherParameters parameters)
-        {
-            throw new NotImplementedException();
-        }
-
-        public int GetInputBlockSize()
-        {
-            throw new NotImplementedException();
-        }
-
-        public int GetOutputBlockSize()
-        {
-            throw new NotImplementedException();
-        }
-
-        public byte[] ProcessBlock(byte[] inBuf, int inOff, int inLen)
-        {
-            throw new NotImplementedException();
-        }
 
 
     }

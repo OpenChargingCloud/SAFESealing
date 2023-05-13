@@ -22,11 +22,11 @@ namespace SAFESealing
         private InterleavedIntegrityPadding  integrityPaddingInstance;
 
 
-        public String getAlgorithm()
-            => cipher.getAlgorithm();
+        public String Algorithm
+            => cipher.AlgorithmName;
 
-        public Byte[] getIV()
-            => cipher.getIV();
+        public Byte[] IV
+            => cipher.IV;
 
 
         /**
@@ -36,16 +36,16 @@ namespace SAFESealing
          * @param cryptoFactory a {@link CryptoFactory} cryptoFactory handle
          * @throws java.security.InvalidKeyException if key is invalid
          */
-        public SymmetricEncryptionWithIntegrityPadding(Cipher cipher)
+        public SymmetricEncryptionWithIntegrityPadding(Cipher cipher, ICryptoFactory cryptoFactory)
         {
 
             // safety check for "bad" chaining. will not catch all bad ones, but the most common-
-            var cipherSpec = cipher.getAlgorithm();
+            var cipherSpec = cipher.AlgorithmName;
 
-            if (!CHAINING_WITHOUT_DIFFUSION.Contains(cipherSpec))
+            if (CHAINING_WITHOUT_DIFFUSION.Contains(cipherSpec))
                 throw new Exception("NEVER use streaming ciphers which just XOR their stream in combination with this padding!");
 
-            var blockSize  = cipher.getBlockSize();
+            var blockSize  = cipher.BlockSize;
 
             // later implementations may lift this restriction. It is "just" about making sure every block gets a nonce.
             if (blockSize != 16)
@@ -59,7 +59,7 @@ namespace SAFESealing
 
         private void Init(Cipher cipher)
         {
-            this.cipherBlockSize           = cipher.getBlockSize();
+            this.cipherBlockSize           = cipher.BlockSize;
             this.cipher                    = cipher;
             this.integrityPaddingInstance  = new InterleavedIntegrityPadding(cipherBlockSize);
             this.rng                       = new SecureRandom();
@@ -74,7 +74,7 @@ namespace SAFESealing
 
             cipher.Init(CipherMode.ENCRYPT_MODE, secretKey, rng); // will create its own iv, and we have to retrieve it later with cipher.getIV();
 
-            return cipher.doFinal(dataToEncrypt);
+            return cipher.DoFinal(dataToEncrypt);
 
         }
 
@@ -115,7 +115,7 @@ namespace SAFESealing
             else
                 cipher.Init(CipherMode.DECRYPT_MODE, secretKey);
 
-            var decryptedData  = cipher.doFinal(input);
+            var decryptedData  = cipher.DoFinal(input);
             var payloadData    = integrityPaddingInstance.CheckAndExtract(decryptedData);
 
             return payloadData;

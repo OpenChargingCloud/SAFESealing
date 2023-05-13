@@ -17,7 +17,7 @@ namespace SAFESealing
         private DerObjectIdentifier?  keyDiversificationOID;
         private DerObjectIdentifier?  encryptionOID;
         private DerObjectIdentifier?  compressionOID;
-        private Asn1Encodable         keyReference; // or Asn1EncodableVector, depending
+        private Asn1Encodable?        keyReference; // or Asn1EncodableVector, depending
 
 
         public TransportFormatConverter()
@@ -39,7 +39,7 @@ namespace SAFESealing
             encryptionOID            = ids.CryptoSettings.Encryption?.                 OID;
             compressionOID           = ids.CryptoSettings.Compression?.                OID;
 
-            Asn1EncodableVector ecDetails = null; // details about the elliptic curve used, optional. not in current version.
+            Asn1EncodableVector? ecDetails = null; // details about the elliptic curve used, optional. not in current version.
             // see https://www.rfc-editor.org/rfc/rfc3279 for encoding of ECParameters
 
             keyReference = null; // key reference for the public key to be used. not in current version
@@ -47,11 +47,12 @@ namespace SAFESealing
             // using bouncy castle. easier with TLVIterator in a later version
             //----
             // prepare first part
-            var encryptionPart = new Asn1EncodableVector();
-            encryptionPart.Add(SharedConstants.OID_IIP_ALGORITHM); // or wrap in context[1] ?
-            encryptionPart.Add(new DerTaggedObject(0, encryptionOID));
+            var encryptionPart = new Asn1EncodableVector {
+                                     SharedConstants.OID_IIP_ALGORITHM, // or wrap in context[1] ?
+                                     new DerTaggedObject(0, encryptionOID)
+                                 };
 
-            if (compressionOID != null) // may be omitted
+            if (compressionOID is not null) // may be omitted
                 encryptionPart.Add(new DerTaggedObject(1, compressionOID));
             if (true)
                 encryptionPart.Add(new DerTaggedObject(2, new DerInteger(ids.CryptoSettings.EncryptionKeySize)));

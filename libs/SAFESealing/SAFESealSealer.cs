@@ -11,12 +11,10 @@ namespace SAFESealing
     public class SAFESealSealer
     {
 
-        private CryptoFactoryImpl cryptoFactory;
+        private readonly CryptoFactoryImpl cryptoFactory;
 
-        private Boolean KeyAgreementMode { get; set; }
-        //private CryptoFactoryImpl cryptoFactory;
-        //private Provider securityProvider;
-        private Boolean CompressionMode { get; set; }
+        private Boolean  KeyAgreementMode    { get; set; }
+        private Boolean  CompressionMode     { get; set; }
 
         /// <summary>
         /// Default algorithm setup.
@@ -24,17 +22,8 @@ namespace SAFESealing
         /// <param name="Advanced">Set to false for standard RSA+IIP encryption.</param>
         public SAFESealSealer(Boolean Advanced = false)
         {
-
-            this.KeyAgreementMode = Advanced;
-
-            //securityProvider = Security.getProvider("BC");
-            //if (securityProvider == null)
-            //{
-            //    securityProvider = new BouncyCastleProvider();
-            //    Security.addProvider(securityProvider);
-            //}
-            this.cryptoFactory = new CryptoFactoryImpl(); // securityProvider);
-
+            this.KeyAgreementMode  = Advanced;
+            this.cryptoFactory     = new CryptoFactoryImpl();
         }
 
 
@@ -80,9 +69,12 @@ namespace SAFESealing
                     CompressionMode  = CompressionMode
                 };
 
-                var publicKeys = new ECPublicKeyParameters[1];
-                publicKeys[0]  = SingleRecipientPublicKey;
-                var payload    = sealer.Seal(PayloadToSeal, SenderPrivateKey, publicKeys, UniqueID);
+                var publicKeys  = new ECPublicKeyParameters[1];
+                publicKeys[0]   = SingleRecipientPublicKey;
+                var payload     = sealer.Seal(PayloadToSeal,
+                                              SenderPrivateKey,
+                                              publicKeys,
+                                              UniqueID);
 
                 return payload;
 

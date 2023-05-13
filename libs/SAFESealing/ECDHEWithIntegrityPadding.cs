@@ -30,7 +30,7 @@ namespace SAFESealing
         /// Return the symmetric IV.
         /// </summary>
         public Byte[] SymmetricIV
-            => symmetricEncryption.getIV();
+            => symmetricEncryption.IV;
 
 
         /**
@@ -65,7 +65,7 @@ namespace SAFESealing
 
             // Cipher symmetricCipher = Cipher.getInstance("AES/ECB/NoPadding"); // default cipher
             var symmetricCipher       = CryptoFactory.GetCipherFromCipherSpec(spec);
-            this.symmetricEncryption  = new SymmetricEncryptionWithIntegrityPadding(symmetricCipher); // default cipher spec
+            this.symmetricEncryption  = new SymmetricEncryptionWithIntegrityPadding(symmetricCipher, CryptoFactory); // default cipher spec
 
         }
 

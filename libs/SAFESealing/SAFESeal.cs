@@ -15,9 +15,9 @@ namespace SAFESealing
 
         #region Data
 
-        private readonly ICryptoFactory                cryptoFactory;
-        private          TransportFormatConverter      formatConverter;
-        private          IAsymmetricEncryptionWithIIP  asymmetricLayer;
+        private readonly ICryptoFactory                 cryptoFactory;
+        private          TransportFormatConverter       formatConverter;
+        private          IAsymmetricEncryptionWithIIP?  asymmetricLayer;
 
         #endregion
 
@@ -61,77 +61,77 @@ namespace SAFESealing
         #endregion
 
 
-        #region Seal(ContentToSeal, SenderKey, RecipientKeys, UniqueId)
+        #region Seal  (Cleartext,   SenderPrivateKey,    RecipientPublicKeys, UniqueId)
 
         /// <summary>
         /// Seal contents: perform calculation of ephemeral key, padding, encryption, and formatting for transport.
         /// </summary>
-        /// <param name="ContentToSeal">A payload content for sealed transport.</param>
-        /// <param name="SenderKey">A sender private key (caller's key).</param>
-        /// <param name="RecipientKeys">A recipient public key(s).</param>
+        /// <param name="Cleartext">A cleartext for sealed transport.</param>
+        /// <param name="SenderPrivateKey">A sender private key (caller's key).</param>
+        /// <param name="RecipientPublicKeys">A recipient public key(s).</param>
         /// <param name="UniqueId">A unique identification to be provided e.g. from a monotonic counter.</param>
         /// <returns>The wrapped and sealed message.</returns>
-        public Byte[] Seal(Byte[]                              ContentToSeal,
-                           ECPrivateKeyParameters              SenderKey,
-                           IEnumerable<ECPublicKeyParameters>  RecipientKeys,
+        public Byte[] Seal(Byte[]                              Cleartext,
+                           ECPrivateKeyParameters              SenderPrivateKey,
+                           IEnumerable<ECPublicKeyParameters>  RecipientPublicKeys,
                            Int64                               UniqueId)
         {
 
-            InternalTransportTuple itt;
+            var itt = KeyAgreementMode
+                          ? new InternalTransportTuple(true)   // ECDHE + AES
+                          : new InternalTransportTuple(false); // RSA
 
             if (KeyAgreementMode)
             {
+                // ECDHE + AES
                 asymmetricLayer = new ECDHEWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.AES256ECB);
-                itt             = new InternalTransportTuple(true); // ECDHE+AES...
                 itt.SetDiversification(UniqueId);
             }
             else
             {
+                // RSA
 
                 // lacking a proper API, we do this the factual way:
-                var description               = SenderKey.ToString();
+                var description               = SenderPrivateKey.ToString();
                 var keyLengthFromDescription  = new Regex(@".+RSA private CRT key,\s+(\d{4})\sbits$", RegexOptions.Multiline);
                 var match                     = keyLengthFromDescription.Match(description);
 
                 if (match.Success == false)
-                    throw new Exception("Could not determine key size");
+                    throw new Exception("Could not determine RSA key length!");
 
                 var privateKeyLength = UInt32.Parse(match.Groups[1].Value);
                 asymmetricLayer = privateKeyLength switch {
                   //1024 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA1024),  //ahzf: RSA1024 is NOT DEFINED within AlgorithmSpecCollection!!?
                     2048 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA2048),
                     4096 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA4096),
-                    _ => throw new Exception("Key of unsupported size " + privateKeyLength),
+                    _    => throw new Exception("Unsupported RSA key length: " + privateKeyLength),
                 };
 
-                itt = new InternalTransportTuple(false); // RSA
                 itt.CryptoSettings.EncryptionKeySize = privateKeyLength;
                 // no diversification needed for direct RSA application
 
             }
 
-            byte[] payload;
-
-            payload = CompressionMode
-                          ? ContentToSeal
-                          : TryToCompress(ContentToSeal, itt); // if compression is activated, perform compression and set respective flag
+            var payload        = CompressionMode
+                                     ? Cleartext
+                                     : TryToCompress(Cleartext, itt);
 
             // Perform asymmetric crypto, symmetric crypto, and padding
             itt.EncryptedData  = asymmetricLayer.PadEncryptAndPackage(payload,
-                                                                      RecipientKeys,
-                                                                      SenderKey,
+                                                                      RecipientPublicKeys,
+                                                                      SenderPrivateKey,
                                                                       itt.KeyDiversificationData);
 
             itt.CryptoIV       = asymmetricLayer.SymmetricIV;
 
-            // format the tuple for transport
+            // Format the tuple for transport
             return formatConverter.WrapForTransport(itt);
 
         }
 
         #endregion
 
-        #region Reveal(SealedInput, RecipientKey, SenderPublicKey)
+        #region Reveal(SealedInput, RecipientPrivateKey, SenderPublicKey)
 
         /// <summary>
         /// Carefully check the sealing, unseal, and return payload data.
@@ -139,11 +139,11 @@ namespace SAFESealing
         /// The most important Exception is the BadPaddingException which signals the integrity validation has failed.
         /// </summary>
         /// <param name="SealedInput">An array of bytes.</param>
-        /// <param name="RecipientKey">A private key.</param>
-        /// <param name="SenderPublicKey">A public key.</param>
+        /// <param name="RecipientPrivateKey">A private key of the recipient.</param>
+        /// <param name="SenderPublicKey">A public key of the sender.</param>
         /// <returns>The cleartext, when everything went OK and the integrity has been validated.</returns>
         public Byte[] Reveal(Byte[]                  SealedInput,
-                             ECPrivateKeyParameters  RecipientKey,
+                             ECPrivateKeyParameters  RecipientPrivateKey,
                              ECPublicKeyParameters   SenderPublicKey) // is one sender public key enough if several were used in sending?
         {
 
@@ -166,25 +166,25 @@ namespace SAFESealing
 
 
             // @IMPROVEMENT for later versions: allow to for a more flexible selection of algorithms.
-            asymmetricLayer = KeyAgreementMode
+            asymmetricLayer     = KeyAgreementMode
 
-                                  ? new ECDHEWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.AES256ECB)
+                                      ? new ECDHEWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.AES256ECB)
 
-                                  : tuple.CryptoSettings.EncryptionKeySize switch {
+                                      : tuple.CryptoSettings.EncryptionKeySize switch {
 
-                                      //1024 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA1024),  //ahzf: RSA1024 is NOT DEFINED within AlgorithmSpecCollection!!?
-                                        2048 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA2048),
-                                        4096 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA4096),
+                                          //1024 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA1024),  //ahzf: RSA1024 is NOT DEFINED within AlgorithmSpecCollection!!?
+                                            2048 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA2048),
+                                            4096 => new RSAWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.RSA4096),
 
-                                        _    => throw new Exception("Specified key size not supported"),
+                                            _    => throw new Exception("Specified key size not supported"),
 
-                                    };
+                                        };
 
-            var payload = asymmetricLayer.DecryptAndVerify(tuple.EncryptedData,
-                                                           SenderPublicKey,
-                                                           RecipientKey,
-                                                           tuple.KeyDiversificationData,
-                                                           tuple.CryptoIV);
+            var payload         = asymmetricLayer.DecryptAndVerify(tuple.EncryptedData,
+                                                                   SenderPublicKey,
+                                                                   RecipientPrivateKey,
+                                                                   tuple.KeyDiversificationData,
+                                                                   tuple.CryptoIV);
 
             return CompressionMode
                        ? InflateZLIBcompressedData(payload)
@@ -321,6 +321,7 @@ namespace SAFESealing
         }
 
         #endregion
+
 
     }
 

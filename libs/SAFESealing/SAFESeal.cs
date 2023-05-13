@@ -10,6 +10,9 @@ using Org.BouncyCastle.Crypto.Parameters;
 namespace SAFESealing
 {
 
+    /// <summary>
+    /// Sealing and revealing of OCMF messages according to SAFE e.V. specifications.
+    /// </summary>
     public class SAFESeal
     {
 
@@ -24,22 +27,27 @@ namespace SAFESealing
         #region Properties
 
         /// <summary>
+        /// Flag shorthand for NONE (==RSA+IIP) or ECDHE.
+        /// Later versions may use an enum.
+        /// </summary>
+        public  Boolean  KeyAgreementMode    { get;}
+
+        /// <summary>
         /// Flag shorthand for NONE or ZLIB.
         /// Later versions may use an enum.
         /// </summary>
         public  Boolean  CompressionMode     { get; private set; }
 
-        /// <summary>
-        /// Flag shorthand for NONE or ECDHE.
-        /// Later versions may use an enum.
-        /// </summary>
-        public  Boolean  KeyAgreementMode    { get;}
-
         #endregion
-
 
         #region Constructor(s)
 
+        /// <summary>
+        /// Create a new SAFE seal.
+        /// </summary>
+        /// <param name="CryptoFactory">A crypto factory.</param>
+        /// <param name="KeyAgreementMode">Flag shorthand for NONE (==RSA+IIP) or ECDHE. Later versions may use an enum.</param>
+        /// <param name="CompressionMode">Flag shorthand for NONE or ZLIB. Later versions may use an enum.</param>
         public SAFESeal(ICryptoFactory  CryptoFactory,
                         Boolean         KeyAgreementMode,
                         Boolean         CompressionMode   = false)

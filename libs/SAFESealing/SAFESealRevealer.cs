@@ -16,28 +16,13 @@ namespace SAFESealing
     public class SAFESealRevealer
     {
 
-        #region Properties
-
-        /// <summary>
-        /// Flag shorthand for NONE (==RSA+IIP) or ECDHE.
-        /// Later versions may use an enum.
-        /// </summary>
-        public CryptoVariant  KeyAgreementMode    { get; }
-
-        #endregion
-
         #region Constructor(s)
 
         /// <summary>
         /// Create a new SAFE seal revealer to verify and extract sealed messages.
         /// </summary>
-        /// <param name="KeyAgreementMode">Whether to use ECDHE+AES or RSA cryptography.</param>
-        public SAFESealRevealer(CryptoVariant KeyAgreementMode = CryptoVariant.ECDHE_AES)
-        {
-
-            this.KeyAgreementMode  = KeyAgreementMode;
-
-        }
+        public SAFESealRevealer()
+        { }
 
         #endregion
 
@@ -50,7 +35,6 @@ namespace SAFESealing
         /// <param name="SenderPublicKey">An elliptic curve public key of the sender.</param>
         /// <param name="RecipientPrivateKey">An elliptic curve private key of a recipient.</param>
         /// <param name="SealedMessage">A sealed message.</param>
-        /// <returns>The verified cleartext.</returns>
         public Byte[] Reveal(ECPublicKeyParameters   SenderPublicKey,
                              ECPrivateKeyParameters  RecipientPrivateKey,
                              Byte[]                  SealedMessage)
@@ -59,6 +43,7 @@ namespace SAFESealing
             {
 
                 return new SAFE_EllipticCurve_Seal().
+
                            Reveal(SealedMessage,
                                   RecipientPrivateKey,
                                   SenderPublicKey);
@@ -76,7 +61,36 @@ namespace SAFESealing
 
         #endregion
 
-        //ToDo: Add RSA!
+        #region Reveal(SenderPublicKey,    RecipientPrivateKey,    SealedMessage)
+
+        /// <summary>
+        /// Verify and reveal a sealed message.
+        /// </summary>
+        /// <param name="SenderPublicKey">An elliptic curve public key of the sender.</param>
+        /// <param name="SealedMessage">A sealed message.</param>
+        public Byte[] Reveal(RSAPublicKey  SenderPublicKey,
+                             Byte[]        SealedMessage)
+        {
+            try
+            {
+
+                return new SAFE_RSA_Seal().
+
+                           Reveal(SealedMessage,
+                                  SenderPublicKey);
+
+            }
+            catch (Exception e)
+            {
+                // Hiding the specific exception to prevent "padding oracle" type attacks, and simplify usage.
+                Debug.WriteLine(e);
+            }
+
+            return Array.Empty<Byte>();
+
+        }
+
+        #endregion
 
         #region Reveal(RawSenderPublicKey, RawRecipientPrivateKey, SealedMessage)
 
@@ -86,7 +100,6 @@ namespace SAFESealing
         /// <param name="RawSenderPublicKey">A RAW public key of a sender as an array of bytes.</param>
         /// <param name="RawRecipientPrivateKey">A RAW private key of a recipient as an array of bytes.</param>
         /// <param name="SealedMessage">A sealed message.</param>
-        /// <returns>The verified cleartext.</returns>
         public Byte[] Reveal(Byte[] RawSenderPublicKey,
                              Byte[] RawRecipientPrivateKey,
                              Byte[] SealedMessage)

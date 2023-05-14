@@ -12,19 +12,19 @@ namespace SAFESealing
 
         #region Properties
 
-        public CryptoSettingsStruct  CryptoSettings            { get; }
-        public Byte[]                CryptoIV                  { get; }
-        public Byte[]?               EncryptedData             { get; set; }
-        public Byte[]                KeyDiversificationData    { get; }
+        public CryptoSettings  CryptoSettings            { get; }
+        public Byte[]          CryptoIV                  { get; }
+        public Byte[]?         EncryptedData             { get; set; }
+        public Byte[]          KeyDiversificationData    { get; }
 
         #endregion
 
         #region Constructor(s)
 
-        public InternalTransportTuple(CryptoSettingsStruct  CryptoSettings,
-                                      Byte[]                CryptoIV,
-                                      Byte[]                EncryptedData,
-                                      Byte[]                KeyDiversificationData)
+        public InternalTransportTuple(CryptoSettings  CryptoSettings,
+                                      Byte[]          CryptoIV,
+                                      Byte[]          EncryptedData,
+                                      Byte[]          KeyDiversificationData)
         {
 
             this.CryptoSettings          = CryptoSettings;

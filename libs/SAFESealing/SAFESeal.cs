@@ -2,9 +2,6 @@
 #region Usings
 
 using System.IO.Compression;
-using System.Text.RegularExpressions;
-
-using Org.BouncyCastle.Crypto.Parameters;
 
 #endregion
 

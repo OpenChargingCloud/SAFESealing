@@ -1,38 +1,44 @@
-﻿using Org.BouncyCastle.Asn1;
+﻿
+#region Usings
+
+using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Gnu;
+using Org.BouncyCastle.Asn1.Ntt;
 using Org.BouncyCastle.Asn1.Kisa;
 using Org.BouncyCastle.Asn1.Misc;
 using Org.BouncyCastle.Asn1.Nist;
-using Org.BouncyCastle.Asn1.Ntt;
 using Org.BouncyCastle.Asn1.Pkcs;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+
+#endregion
 
 namespace SAFESealing
 {
+
+    /// <summary>
+    /// Shared constants.
+    /// </summary>
     public static class SharedConstants
     {
 
+        #region (static) Properties
 
-        public static readonly Int32                SAFE_SEAL_VERSION = 1;
+        public static IEnumerable<DerObjectIdentifier> CiphersOIDs
+            => ciphers.Keys;
 
-        public static readonly DerObjectIdentifier  OID_SAFE_SEAL      = new ("1.3.6.1.4.1.60279.1.1");
+        public static IEnumerable<DerObjectIdentifier> KeyDiversificationOIDs
+            => keyDiversificationAlgorithms.Keys;
 
-        public static readonly DerObjectIdentifier  OID_SAFE_SEAL_AUTH = new ("1.3.6.1.4.1.60279.1.2");
+        public static IEnumerable<DerObjectIdentifier> KeyExchangeAlgorithmsOIDs
+            => keyExchangeAlgorithms.Keys;
 
-        /// <summary>
-        /// See https://www.rfc-editor.org/rfc/rfc8017.html A.1
-        /// </summary>
-        public static readonly DerObjectIdentifier  OID_RSA_ECB        = new ("1.2.840.113549.1.1.1"); // issues with BouncyCastle vs. Oracle JCE
+        #endregion
 
+        #region (static) Constructor(s)
 
         static SharedConstants()
         {
 
-            keyExchange.Add(OID_ECDH_ALGORITHM, "ECDH"); // see RFC 6637; and RFC 5480 clause 2.1.2
+            keyExchanges.Add(OID_ECDH_ALGORITHM, "ECDH"); // see RFC 6637; and RFC 5480 clause 2.1.2
             // keyExchange.put(OIWObjectIdentifiers.elGamalAlgorithm, "ELGAMAL"); -- not valid yet, possible future extension
 
             keyDiversificationAlgorithms.Add(NistObjectIdentifiers.IdSha224, "SHA224");
@@ -76,22 +82,23 @@ namespace SAFESealing
 
             // how can we be sure java manages to initialise this in the right order?
             // since OID are guaranteed to be globally unique, no collision can occur here.
-            foreach (var _keyExchange in keyExchange)
-                combinedForwardMap.Add(_keyExchange.Key, _keyExchange.Value);
+            foreach (var keyExchange in keyExchanges)
+                combinedForwardMap.Add(keyExchange.Key, keyExchange.Value);
 
-            foreach (var _keyExchangeAlgorithm in keyExchangeAlgorithms)
-                combinedForwardMap.Add(_keyExchangeAlgorithm.Key, _keyExchangeAlgorithm.Value);
+            foreach (var keyExchangeAlgorithm in keyExchangeAlgorithms)
+                combinedForwardMap.Add(keyExchangeAlgorithm.Key, keyExchangeAlgorithm.Value);
 
-            foreach (var _keyDiversificationAlgorithm in keyDiversificationAlgorithms)
-                combinedForwardMap.Add(_keyDiversificationAlgorithm.Key, _keyDiversificationAlgorithm.Value);
+            foreach (var keyDiversificationAlgorithm in keyDiversificationAlgorithms)
+                combinedForwardMap.Add(keyDiversificationAlgorithm.Key, keyDiversificationAlgorithm.Value);
 
-            foreach (var _cipher in ciphers)
-                combinedForwardMap.Add(_cipher.Key, _cipher.Value);
+            foreach (var cipher in ciphers)
+                combinedForwardMap.Add(cipher.Key, cipher.Value);
+
+            foreach (var padding in paddings)
+                combinedForwardMap.Add(padding.Key, padding.Value);
 
             // combinedForwardMap.putAll(futureCiphers); -- during development/testing only
 
-            foreach (var _padding in paddings)
-                combinedForwardMap.Add(_padding.Key, _padding.Value);
 
             // constructing the reverse map could, theorhetically, cause collisions; above limited data set should not generate any.
             foreach (var reversed in combinedForwardMap)
@@ -99,55 +106,59 @@ namespace SAFESealing
 
         }
 
-        /**
-         * Algorithm name lookup from OID.
-         * This is not a generic function, its scope is limited to this software.
-         *
-         * @param oid OID to look up
-         * @return name/algorithm spec belonging to the OID
-         * @throws java.security.NoSuchAlgorithmException if this class could not find the OID provided
-         */
-        public static String GetNameForOID(DerObjectIdentifier oid)
-        {
+        #endregion
 
-            if (combinedForwardMap.TryGetValue(oid, out var oidValue))
-                return oidValue;
 
-            throw new Exception(oid.Id);
-
-        }
-
-        /**
-         * reverse lookup from name to OID. Note this is not checking for aliases;
-         * you may have provided a String that would be perfectly understandable for a human,
-         * but fails in this automated lookup.
-         *
-         * @param algorithmName the name or algorithm spec to look up
-         * @return corresponding OID
-         * @throws java.security.NoSuchAlgorithmException if this specific lookup could not find a match
-         */
-        public static DerObjectIdentifier GetOIDForName(String algorithmName)
-        {
-
-            if (combinedReverseMap.TryGetValue(algorithmName, out var derObjectIdentifier))
-                return derObjectIdentifier;
-
-            throw new Exception(algorithmName);
-
-        }
-
+        #region TryGetNameForOID(OID)
 
         /// <summary>
-        /// accessors for automated tests
+        /// Algorithm name lookup from OID.
         /// </summary>
-        public static IEnumerable<DerObjectIdentifier> CiphersOIDs
-            => ciphers.Keys;
+        /// <param name="OID">The OID to look up.</param>
+        public static String? TryGetNameForOID(DerObjectIdentifier OID)
+        {
 
-        public static IEnumerable<DerObjectIdentifier> KeyDiversificationOIDs
-            => keyDiversificationAlgorithms.Keys;
+            if (combinedForwardMap.TryGetValue(OID, out var oidName))
+                return oidName;
 
-        public static IEnumerable<DerObjectIdentifier> KeyExchangeAlgorithmsOIDs
-            => keyExchangeAlgorithms.Keys;
+            return null;
+
+        }
+
+        #endregion
+
+        #region TryGetOIDForName(AlgorithmName)
+
+        /// <summary>
+        /// Reverse lookup from name to OID.
+        /// Note this is not checking for aliases!
+        /// </summary>
+        /// <param name="AlgorithmName">The algorithm name to look up.</param>
+        public static DerObjectIdentifier? TryGetOIDForName(String AlgorithmName)
+        {
+
+            if (combinedReverseMap.TryGetValue(AlgorithmName, out var derObjectIdentifier))
+                return derObjectIdentifier;
+
+            return null;
+
+        }
+
+        #endregion
+
+
+        #region Static definitions
+
+        public static readonly Int32                SAFE_SEAL_VERSION = 1;
+
+        public static readonly DerObjectIdentifier  OID_SAFE_SEAL      = new ("1.3.6.1.4.1.60279.1.1");
+
+        public static readonly DerObjectIdentifier  OID_SAFE_SEAL_AUTH = new ("1.3.6.1.4.1.60279.1.2");
+
+        /// <summary>
+        /// See https://www.rfc-editor.org/rfc/rfc8017.html A.1
+        /// </summary>
+        public static readonly DerObjectIdentifier  OID_RSA_ECB        = new ("1.2.840.113549.1.1.1"); // issues with BouncyCastle vs. Oracle JCE
 
 
         //--------------------------------------------------------------------------------------------------------------------
@@ -239,7 +250,7 @@ namespace SAFESealing
 
         // NB: we are not using any algorithm for HMAC purposes; these are used for key diversification at key exchange level only.
         private static readonly Dictionary<DerObjectIdentifier, String> keyDiversificationAlgorithms  = new ();
-        private static readonly Dictionary<DerObjectIdentifier, String> keyExchange                   = new ();
+        private static readonly Dictionary<DerObjectIdentifier, String> keyExchanges                   = new ();
         private static readonly Dictionary<DerObjectIdentifier, String> keyExchangeAlgorithms         = new ();
         private static readonly Dictionary<DerObjectIdentifier, String> ciphers                       = new ();
         private static readonly Dictionary<DerObjectIdentifier, String> futureCiphers                 = new ();
@@ -254,6 +265,7 @@ namespace SAFESealing
         /** Constant <code>OID_IIP_ALGORITHM</code> */
         public static readonly DerObjectIdentifier OID_IIP_ALGORITHM = new ("1.3.6.1.4.1.21876.4.3.1");
 
+        #endregion
 
 
     }

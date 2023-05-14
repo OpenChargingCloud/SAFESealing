@@ -60,7 +60,7 @@ namespace SAFESealing
             var asymmetricLayer  = new ECDHEWithIntegrityPadding(AlgorithmSpecCollection.AES256ECB);
 
             var itt              = new InternalTransportTuple(
-                                       new CryptoSettingsStruct(
+                                       new CryptoSettings(
                                            AlgorithmSpecCollection.ECDH,
                                            AlgorithmSpecCollection.ECSECP256R1,
                                            AlgorithmSpecCollection.SHA256,

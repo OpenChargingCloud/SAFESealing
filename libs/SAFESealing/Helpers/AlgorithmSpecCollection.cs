@@ -1,24 +1,31 @@
-﻿using Org.BouncyCastle.Asn1;
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
+﻿
+#region Usings
+
+using System.Collections;
+
+using Org.BouncyCastle.Asn1;
+
+#endregion
 
 namespace SAFESealing
 {
-    public class AlgorithmSpecCollection
+
+    public class AlgorithmSpecCollection : IEnumerable<AlgorithmSpec>
     {
+
+        #region Data
 
         private static readonly Dictionary<DerObjectIdentifier, AlgorithmSpec> algorithms = new();
 
-        public static IEnumerable<AlgorithmSpec> GetAllDefined()
-            => algorithms.Values;
+        public IEnumerator<AlgorithmSpec> GetEnumerator()
+            => algorithms.Values.GetEnumerator();
 
-        public static AlgorithmSpec LookupByOID(DerObjectIdentifier oid)
-            => algorithms[oid];
+        IEnumerator IEnumerable.GetEnumerator()
+            => algorithms.Values.GetEnumerator();
+
+        #endregion
+
+        #region (static) AlgorithmSpecCollection()
 
         static AlgorithmSpecCollection()
         {
@@ -37,7 +44,18 @@ namespace SAFESealing
 
         }
 
+        #endregion
 
+
+        #region (static) LookupByOID(OID)
+
+        public static AlgorithmSpec LookupByOID(DerObjectIdentifier OID)
+            => algorithms[OID];
+
+        #endregion
+
+
+        #region Static definitions
 
         /** Constant <code>ECDH</code> */
         public static readonly AlgorithmSpec ECDH                = new (SharedConstants.OID_ECDH_ALGORITHM,              "ECDH",                 AlgorithmSpec.CryptoTypes.KEY_AGREEMENT);
@@ -65,8 +83,7 @@ namespace SAFESealing
         /** Constant <code>RSA2048_on_SunJCE</code> */
         public static readonly AlgorithmSpec RSA2048_on_SunJCE   = new (SharedConstants.OID_RSA_ECB,                     "RSA/ECB/NoPadding",    AlgorithmSpec.CryptoTypes.CIPHER, true, 2048, 256, 0); // internal test constructor, not public
 
-
-
+        #endregion
 
 
     }

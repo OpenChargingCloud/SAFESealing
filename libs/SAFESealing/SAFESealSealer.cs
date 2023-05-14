@@ -19,12 +19,6 @@ namespace SAFESealing
         #region Properties
 
         /// <summary>
-        /// Flag shorthand for NONE (==RSA+IIP) or ECDHE.
-        /// Later versions may use an enum.
-        /// </summary>
-        public CryptoVariant  KeyAgreementMode    { get; }
-
-        /// <summary>
         /// Flag shorthand for NONE or ZLIB.
         /// Later versions may use an enum.
         /// </summary>
@@ -37,60 +31,28 @@ namespace SAFESealing
         /// <summary>
         /// Create a new SAFE seal sealer.
         /// </summary>
-        /// <param name="KeyAgreementMode">Whether to use ECDHE+AES or RSA cryptography.</param>
         /// <param name="CompressionMode">Flag shorthand for NONE or ZLIB. Later versions may use an enum.</param>
-        private SAFESealSealer(CryptoVariant  KeyAgreementMode   = CryptoVariant.ECDHE_AES,
-                               Boolean        CompressionMode    = false)
+        public SAFESealSealer(Boolean CompressionMode = false)
         {
 
-            this.KeyAgreementMode  = KeyAgreementMode;
-            this.CompressionMode   = CompressionMode;
+            this.CompressionMode  = CompressionMode;
 
         }
 
         #endregion
 
 
-        #region (static) ECDHE_AES(CompressionMode = false)
-
-        /// <summary>
-        /// Create a new SAFE sealer using ECDHE+AES cryptography.
-        /// </summary>
-        /// <param name="CompressionMode">Flag shorthand for NONE or ZLIB. Later versions may use an enum.</param>
-        public static SAFESealSealer ECDHE_AES(Boolean CompressionMode = false)
-
-            => new (CryptoVariant.ECDHE_AES,
-                    CompressionMode);
-
-        #endregion
-
-        #region (static) RSA      (CompressionMode = false)
-
-        /// <summary>
-        /// Create a new SAFE sealer using RSA cryptography.
-        /// </summary>
-        /// <param name="CompressionMode">Flag shorthand for NONE or ZLIB. Later versions may use an enum.</param>
-
-        public static SAFESealSealer RSA(Boolean CompressionMode = false)
-
-            => new (CryptoVariant.RSA,
-                    CompressionMode);
-
-        #endregion
-
-
-        #region Seal(SenderPrivateKey,    SingleRecipientPublicKey,    Cl.eartext, Nonce)
+        #region Seal(SenderECPrivateKey,  RecipientECPublicKey,        Cleartext, Nonce)
 
         /// <summary>
         /// Seal a cleartext, encrypting and protecting it for transport.
         /// </summary>
-        /// <param name="SenderPrivateKey">An elliptic curve private key of a sender.</param>
-        /// <param name="SingleRecipientPublicKey">An elliptic curve public key of a recipient.</param>
+        /// <param name="SenderECPrivateKey">An elliptic curve private key of a sender.</param>
+        /// <param name="RecipientECPublicKey">An elliptic curve public key of a recipient.</param>
         /// <param name="Cleartext">A cleartext to be sealed for transport.</param>
         /// <param name="Nonce">A cryptographic nonce for increasing the entropy. A random number or a monotonic counter is recommended.</param>
-        /// <returns>A sealed message.</returns>
-        public Byte[] Seal(ECPrivateKeyParameters  SenderPrivateKey,
-                           ECPublicKeyParameters   SingleRecipientPublicKey,
+        public Byte[] Seal(ECPrivateKeyParameters  SenderECPrivateKey,
+                           ECPublicKeyParameters   RecipientECPublicKey,
                            Byte[]                  Cleartext,
                            Byte[]                  Nonce)
         {
@@ -98,14 +60,12 @@ namespace SAFESealing
             try
             {
 
-                return new SAFE_EllipticCurve_Seal(
-                               CompressionMode
-                           ).
+                return new SAFE_EllipticCurve_Seal(CompressionMode).
 
                            Seal(Cleartext,
-                                SenderPrivateKey,
+                                SenderECPrivateKey,
                                 new[] {
-                                    SingleRecipientPublicKey
+                                    RecipientECPublicKey
                                 },
                                 Nonce);
 
@@ -121,7 +81,36 @@ namespace SAFESealing
 
         #endregion
 
-        //ToDo: Add RSA!
+        #region Seal(SenderRSAPrivateKey,                              Cleartext)
+
+        /// <summary>
+        /// Seal a cleartext, encrypting and protecting it for transport.
+        /// </summary>
+        /// <param name="SenderRSAPrivateKey">A RSA private key of a sender.</param>
+        /// <param name="Cleartext">A cleartext to be sealed for transport.</param>
+        public Byte[] Seal(RSAPrivateKey  SenderRSAPrivateKey,
+                           Byte[]         Cleartext)
+        {
+
+            try
+            {
+
+                return new SAFE_RSA_Seal(CompressionMode).
+
+                           Seal(Cleartext,
+                                SenderRSAPrivateKey);
+
+            }
+            catch (Exception e)
+            {
+                Debug.WriteLine(e);
+            }
+
+            return Array.Empty<Byte>();
+
+        }
+
+        #endregion
 
         #region Seal(RawPrivateKeySender, RawPublicKeySingleRecipient, Cleartext, Nonce)  // Do not use!
 
@@ -132,7 +121,6 @@ namespace SAFESealing
         /// <param name="RawPublicKeySingleRecipient">A RAW public key of a single recipient as an array of bytes.</param>
         /// <param name="Cleartext">A cleartext to be sealed for transport.</param>
         /// <param name="Nonce">An unique identification assigned to this message. A monotonic counter or similar source is recommended.</param>
-        /// <returns>A sealed message.</returns>
         public Byte[] Seal(Byte[] RawPrivateKeySender,
                            Byte[] RawPublicKeySingleRecipient,
                            Byte[] Cleartext,

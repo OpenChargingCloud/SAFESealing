@@ -1,15 +1,17 @@
-﻿using Org.BouncyCastle.Asn1;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿
+#region Usings
+
+using Org.BouncyCastle.Asn1;
+
+#endregion
 
 namespace SAFESealing
 {
 
     public class AlgorithmSpec
     {
+
+        #region (enum) CryptoTypes
 
         /// <summary>
         /// The type of cryptographic object
@@ -50,11 +52,15 @@ namespace SAFESealing
 
         }
 
+        #endregion
+
+
+        #region Properties
 
         /// <summary>
         /// Algorithm OID.
         /// </summary>
-        public DerObjectIdentifier  OID              { get; set; }
+        public DerObjectIdentifier  OID                   { get; set; }
 
         /// <summary>
         /// Get name (human readable, but for consistency, it should comply with usual specification spelling used e.g. in Cipher lookup.
@@ -86,27 +92,9 @@ namespace SAFESealing
         /// </summary>
         public Int32                UsableBlockSize       { get; set; }
 
+        #endregion
 
-        public override String ToString()
-
-            => CryptoType switch {
-
-                   CryptoTypes.CIPHER
-                       => $"{Name} {KeySizeInBit}",
-
-                   CryptoTypes.COMPRESSION   or
-                   CryptoTypes.DIGEST        or
-                   CryptoTypes.KEY_AGREEMENT or
-                   CryptoTypes.PADDING
-                       => Name,
-
-                   //CryptoTypes.ELLIPTIC_CURVE ??????????????
-
-                   _
-                       => throw new Exception("internal error, invalid type")
-
-               };
-
+        #region Constructor(s)
 
         /// <summary>
         /// Construct an algorithm spec, with reduced content.
@@ -119,7 +107,7 @@ namespace SAFESealing
                              CryptoTypes          CryptoType)
         {
 
-            this.OID    = OID;
+            this.OID         = OID;
             this.Name        = Name;
             this.CryptoType  = CryptoType;
             // leaving everything else on default == 0
@@ -145,7 +133,7 @@ namespace SAFESealing
                              Int32                Tara)
         {
 
-            this.OID            = OID;
+            this.OID                 = OID;
             this.Name                = Name;
             this.CryptoType          = CryptoType;
             this.IsAsymmetricCipher  = AsymmetricFlag;
@@ -155,6 +143,32 @@ namespace SAFESealing
 
         }
 
+        #endregion
+
+
+        #region ToString()
+
+        public override String ToString()
+
+            => CryptoType switch {
+
+                   CryptoTypes.CIPHER
+                       => $"{Name} {KeySizeInBit}",
+
+                   CryptoTypes.COMPRESSION   or
+                   CryptoTypes.DIGEST        or
+                   CryptoTypes.KEY_AGREEMENT or
+                   CryptoTypes.PADDING
+                       => Name,
+
+                   //CryptoTypes.ELLIPTIC_CURVE ??????????????
+
+                   _
+                       => throw new Exception("internal error, invalid type")
+
+               };
+
+        #endregion
 
     }
 

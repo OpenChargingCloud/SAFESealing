@@ -183,7 +183,7 @@ namespace SAFESealing
                             break;
 
                         case "DerObjectIdentifier":
-                            paddingAlgorithm = CryptoSettingsStruct.GetPaddingOID(DerObjectIdentifier.GetInstance(entry));
+                            paddingAlgorithm = CryptoSettings.GetPaddingOID(DerObjectIdentifier.GetInstance(entry));
                             break;
 
                         case "DerTaggedObject":
@@ -199,11 +199,11 @@ namespace SAFESealing
                             {
 
                                 case 0: // CONTEXT[0] OID is the encryption algorithm OID
-                                    encryptionAlgorithm  = CryptoSettingsStruct.GetEncryptionOID(DerObjectIdentifier.GetInstance(taggedObject.GetObject()));// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
+                                    encryptionAlgorithm  = CryptoSettings.GetEncryptionOID(DerObjectIdentifier.GetInstance(taggedObject.GetObject()));// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
                                     break;
 
                                 case 1: // CONTEXT[1] OID is the compression algorithm OID
-                                    compressionAlgorithm = CryptoSettingsStruct.GetCompressionOID(DerObjectIdentifier.GetInstance(taggedObject.GetObject()));// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
+                                    compressionAlgorithm = CryptoSettings.GetCompressionOID(DerObjectIdentifier.GetInstance(taggedObject.GetObject()));// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
                                     break;
 
                                 case 2: // CONTEXT[2] INTEGER is the optional keysize in bit
@@ -243,7 +243,7 @@ namespace SAFESealing
                         {
 
                             case "DerObjectIdentifier":
-                                keyAgreementAlgorithm = CryptoSettingsStruct.GetKeyAgreementProtocolByOID(DerObjectIdentifier.GetInstance(entry));
+                                keyAgreementAlgorithm = CryptoSettings.GetKeyAgreementProtocolByOID(DerObjectIdentifier.GetInstance(entry));
                                 break;
 
                             case "DerOctetString":
@@ -266,12 +266,12 @@ namespace SAFESealing
 
                                     case 0: // CONTEXT[0] key diversification algorithm OID
                                         keyDiversificationOID       = DerObjectIdentifier. GetInstance(taggedObject.GetObject());// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER));
-                                        keyDiversificationAlgorithm = CryptoSettingsStruct.GetKeyDiversificationOID(keyDiversificationOID);
+                                        keyDiversificationAlgorithm = CryptoSettings.GetKeyDiversificationOID(keyDiversificationOID);
                                         break;
 
                                     case 1: // CONTEXT[1] EC Algorithm OID
                                         ecAlgorithmOID              = DerObjectIdentifier. GetInstance(taggedObject.GetObject());// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER));
-                                        keyAgreementCipherToUse     = CryptoSettingsStruct.GetKeyAgreementCipherOID(ecAlgorithmOID); // will fail if algorithm isn't known in AlgorithmSpecCollection.
+                                        keyAgreementCipherToUse     = CryptoSettings.GetKeyAgreementCipherOID(ecAlgorithmOID); // will fail if algorithm isn't known in AlgorithmSpecCollection.
                                         break;
 
                                     case 2:
@@ -313,7 +313,7 @@ namespace SAFESealing
                 if (compressionAlgorithm is null)
                     throw new Exception("The compression algorithm must not be null!");
 
-                return new InternalTransportTuple(new CryptoSettingsStruct(
+                return new InternalTransportTuple(new CryptoSettings(
                                                       KeyAgreementProtocolToUse:  keyAgreementAlgorithm,
                                                       KeyAgreementCipherToUse:    keyAgreementCipherToUse,
                                                       KeyDiversificationToUse:    keyDiversificationAlgorithm,

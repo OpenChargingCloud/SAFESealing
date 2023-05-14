@@ -3,8 +3,6 @@
 
 using System.Text.RegularExpressions;
 
-using Org.BouncyCastle.Crypto.Parameters;
-
 #endregion
 
 namespace SAFESealing
@@ -49,18 +47,16 @@ namespace SAFESealing
         /// Seal contents: perform calculation of ephemeral key, padding, encryption, and formatting for transport.
         /// </summary>
         /// <param name="Cleartext">A cleartext for sealed transport.</param>
-        /// <param name="SenderPrivateKey">A sender private key (caller's key).</param>
+        /// <param name="SenderRSAPrivateKey">A sender private key (caller's key).</param>
         /// <param name="RecipientPublicKeys">A recipient public key(s).</param>
         /// <param name="Nonce">A cryptographic nonce for increasing the entropy. A random number or a monotonic counter is recommended.</param>
         /// <returns>The wrapped and sealed message.</returns>
-        public Byte[] Seal(Byte[]                              Cleartext,
-                           ECPrivateKeyParameters              SenderPrivateKey,
-                           IEnumerable<ECPublicKeyParameters>  RecipientPublicKeys,
-                           Byte[]                              Nonce)
+        public Byte[] Seal(Byte[]         Cleartext,
+                           RSAPrivateKey  SenderRSAPrivateKey)
         {
 
             // lacking a proper API, we do this the factual way:
-            var description               = SenderPrivateKey.ToString();
+            var description               = SenderRSAPrivateKey.ToString();
             var keyLengthFromDescription  = new Regex(@".+RSA private CRT key,\s+(\d{4})\sbits$", RegexOptions.Multiline);
             var match                     = keyLengthFromDescription.Match(description);
 
@@ -77,7 +73,7 @@ namespace SAFESealing
 
             // No diversification needed for direct RSA application
             var itt            = new InternalTransportTuple(
-                                     new CryptoSettingsStruct(
+                                     new CryptoSettings(
                                          null,
                                          null,
                                          null,
@@ -88,7 +84,7 @@ namespace SAFESealing
                                      ),
                                      asymmetricLayer.SymmetricIV,
                                      Array.Empty<Byte>(),
-                                     Nonce
+                                     Array.Empty<Byte>()
                                  );
 
             var payload        = CompressionMode
@@ -97,9 +93,7 @@ namespace SAFESealing
 
             // Perform asymmetric crypto, symmetric crypto, and padding
             itt.EncryptedData  = asymmetricLayer.PadEncryptAndPackage(payload,
-                                                                      RecipientPublicKeys,
-                                                                      SenderPrivateKey,
-                                                                      itt.KeyDiversificationData);
+                                                                      SenderRSAPrivateKey);
 
             // Format the tuple for transport
             return TransportFormatConverter.WrapForTransport(itt);
@@ -116,12 +110,10 @@ namespace SAFESealing
         /// The most important Exception is the BadPaddingException which signals the integrity validation has failed.
         /// </summary>
         /// <param name="SealedInput">An array of bytes.</param>
-        /// <param name="RecipientPrivateKey">A private key of the recipient.</param>
         /// <param name="SenderPublicKey">A public key of the sender.</param>
         /// <returns>The cleartext, when everything went OK and the integrity has been validated.</returns>
-        public Byte[] Reveal(Byte[]                  SealedInput,
-                             ECPrivateKeyParameters  RecipientPrivateKey,
-                             ECPublicKeyParameters   SenderPublicKey) // is one sender public key enough if several were used in sending?
+        public Byte[] Reveal(Byte[]        SealedInput,
+                             RSAPublicKey  SenderPublicKey) // is one sender public key enough if several were used in sending?
         {
 
             var tuple           = TransportFormatConverter.UnwrapTransportFormat(SealedInput)
@@ -153,10 +145,7 @@ namespace SAFESealing
                                 _ => throw new Exception("Specified key size not supported"),
 
                             }).DecryptAndVerify(tuple.EncryptedData,
-                                                SenderPublicKey,
-                                                RecipientPrivateKey,
-                                                tuple.KeyDiversificationData,
-                                                tuple.CryptoIV);
+                                                SenderPublicKey);
 
             return CompressionMode
                        ? SAFESeal.InflateZLIBcompressedData(payload)

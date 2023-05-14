@@ -119,7 +119,7 @@ namespace SAFESealing
         }
 
 
-        public void Init(CipherMode Mode, RSAPrivateKey OurPrivateKey, SecureRandom rng)
+        public void InitRSAPrivateKey(CipherMode Mode, RSAPrivateKey OurPrivateKey, SecureRandom rng)
         {
 
 
@@ -133,7 +133,12 @@ namespace SAFESealing
 
         }
 
+        public void InitRSAPublicKey(CipherMode Mode, RSAPublicKey SenderRSAKey, SecureRandom rng)
+        {
 
+
+
+        }
 
 
 

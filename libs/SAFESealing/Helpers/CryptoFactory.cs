@@ -12,8 +12,11 @@ using Org.BouncyCastle.Crypto.Parameters;
 
 namespace SAFESealing
 {
+
     public static class CryptoFactory
     {
+
+        #region (static) GetCipherFromCipherSpec(AlgorithmSpec)
 
         public static Cipher? GetCipherFromCipherSpec(AlgorithmSpec AlgorithmSpec)
         {
@@ -44,6 +47,10 @@ namespace SAFESealing
 
         }
 
+        #endregion
+
+        #region (static) GetEllipticCurve(AlgorithmSpec)
+
         public static ECDomainParameters? GetEllipticCurve(AlgorithmSpec AlgorithmSpec)
         {
 
@@ -63,7 +70,9 @@ namespace SAFESealing
 
         }
 
+        #endregion
 
+        #region (static) GetRSAECB(AlgorithmSpec)
 
         /**
          * workaround for differences in crypto providers.
@@ -81,6 +90,8 @@ namespace SAFESealing
         private static Cipher GetRSAECB(AlgorithmSpec AlgorithmSpec)
 
             => new (new RsaEngine()); // corresponds to "RSA/ECB/NoPadding"
+
+        #endregion
 
     }
 

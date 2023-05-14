@@ -8,7 +8,7 @@ using Org.BouncyCastle.Asn1;
 namespace SAFESealing
 {
 
-    public class CryptoSettingsStruct
+    public class CryptoSettings
     {
 
         #region Properties
@@ -38,13 +38,13 @@ namespace SAFESealing
         /// <param name="CompressionUsed">indicator for recipient whether sender used some compression on the content. Implementation just passes this on, it is not performed here.</param>
         /// <param name="PaddingToUse"></param>
         /// <param name="EncryptionKeySize"></param>
-        public CryptoSettingsStruct(AlgorithmSpec?  KeyAgreementProtocolToUse,
-                                    AlgorithmSpec?  KeyAgreementCipherToUse,
-                                    AlgorithmSpec?  KeyDiversificationToUse,
-                                    AlgorithmSpec   EncryptionToUse,
-                                    AlgorithmSpec   CompressionUsed,
-                                    AlgorithmSpec?  PaddingToUse,
-                                    UInt32?         EncryptionKeySize)
+        public CryptoSettings(AlgorithmSpec?  KeyAgreementProtocolToUse,
+                              AlgorithmSpec?  KeyAgreementCipherToUse,
+                              AlgorithmSpec?  KeyDiversificationToUse,
+                              AlgorithmSpec   EncryptionToUse,
+                              AlgorithmSpec   CompressionUsed,
+                              AlgorithmSpec?  PaddingToUse,
+                              UInt32?         EncryptionKeySize)
         {
 
             this.Compression                  = CompressionUsed;

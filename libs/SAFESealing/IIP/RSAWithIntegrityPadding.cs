@@ -3,6 +3,7 @@
 
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Crypto;
 
 #endregion
 
@@ -63,25 +64,23 @@ namespace SAFESealing
         //ToDo(ahzf): RSA IIP does not yet use the correct RSA key data structure!
 
 
-        #region PadEncryptAndPackage(Cleartext, OtherSidePublicKey, OurPrivateKey, Diversification)
+        #region PadEncryptAndPackage(Cleartext, OurRSAPrivateKey)
 
         /// <summary>
         /// Pad encrypt and package.
         /// </summary>
         /// <param name="Cleartext">An array of {@link byte} objects</param>
-        /// <param name="OtherSideECPublicKey">a {@link java.security.PublicKey} object</param>
-        /// <param name="OurECPrivateKey">a {@link java.security.PrivateKey} object</param>
-        /// <param name="KeyDiversification">A cryptographic nonce for increasing the entropy.</param>
-        public Byte[] PadEncryptAndPackage(Byte[]                  Cleartext,
-                                           ECPublicKeyParameters   OtherSidePublicKey,
-                                           ECPrivateKeyParameters  OurPrivateKey,
-                                           Byte[]                  Diversification)
+        /// <param name="OurRSAPrivateKey">a {@link java.security.PrivateKey} object</param>
+        public Byte[] PadEncryptAndPackage(Byte[]         Cleartext,
+                                           RSAPrivateKey  OurRSAPrivateKey)
         {
+
 
             var RSA_blocksize     = algorithmSpec.CipherBlockSize;
             var usable_blocksize  = algorithmSpec.UsableBlockSize;
 
-            var rsaPrivKey        = (RSAPrivateKey) (Object) OurPrivateKey; // cast checks for correct key type for the algorithms
+            //ToDo(ahzf): This cast is wrong!
+          //  var rsaPrivKey        = (RSAPrivateKey) (Object) OurRSAPrivateKey; // cast checks for correct key type for the algorithms
             //assert (rsaPrivKey.getModulus().bitLength() == algorithmSpec.getKeySizeInBit()); // must match expected size
 
             // pad
@@ -89,7 +88,7 @@ namespace SAFESealing
             //assert (padded.length % usable_blocksize == 0); // if not, our padding has a bug
 
             // encrypt
-            cipher.Init(CipherMode.ENCRYPT_MODE, rsaPrivKey, rng);
+            cipher.InitRSAPrivateKey(CipherMode.ENCRYPT_MODE, OurRSAPrivateKey, rng);
             // rsa will support single blocks only, so we have to split ourselves.
             var inputLength     = padded.Length;
             var outputLength    = (inputLength / usable_blocksize) * RSA_blocksize; // scaling from one to the other
@@ -112,47 +111,16 @@ namespace SAFESealing
 
         #endregion
 
-        #region PadEncryptAndPackage(Cleartext, RecipientKeys, SenderKey, KeyDiversificationForEC)
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="Cleartext"></param>
-        /// <param name="RecipientKeys"></param>
-        /// <param name="SenderKey"></param>
-        /// <param name="KeyDiversificationForEC">A cryptographic nonce for increasing the entropy.</param>
-        public Byte[] PadEncryptAndPackage(Byte[]                              Cleartext,
-                                           IEnumerable<ECPublicKeyParameters>  RecipientKeys,
-                                           ECPrivateKeyParameters              SenderKey,
-                                           Byte[]                              KeyDiversificationForEC)
-        {
-
-            // Recipient keys are ignored in RSA scheme.
-            return PadEncryptAndPackage(Cleartext,
-                                        (ECPublicKeyParameters) null,
-                                        SenderKey,
-                                        Array.Empty<Byte>());
-
-        }
-
-        #endregion
-
-
-        #region DecryptAndVerify(EncryptedData, OtherSidePublicKey, OurPrivateKey, KeyDiversificationForEC, IVForSymmetricCrypto)
+        #region DecryptAndVerify(EncryptedData, SenderRSAPublicKey)
 
         /// <summary>
         /// Decrypt and verify.
         /// </summary>
         /// <param name="EncryptedData">an array of {@link byte} objects</param>
-        /// <param name="OtherSideECPublicKey">a {@link java.security.PublicKey} object</param>
-        /// <param name="OurECPrivateKey">a {@link java.security.PrivateKey} object</param>
-        /// <param name="KeyDiversificationForEC">an array of {@link byte} objects</param>
-        /// <param name="IVForSymmetricCrypto">an array of {@link byte} objects</param>
-        public Byte[] DecryptAndVerify(Byte[]                  EncryptedData,
-                                       ECPublicKeyParameters   SenderPublicKey,
-                                       ECPrivateKeyParameters  RecipientPrivateKey,
-                                       Byte[]                  Diversification,
-                                       Byte[]                  IV)
+        /// <param name="SenderRSAPublicKey">a {@link java.security.PublicKey} object</param>
+        public Byte[] DecryptAndVerify(Byte[]        EncryptedData,
+                                       RSAPublicKey  SenderRSAPublicKey)
         {
 
             var RSA_blocksize     = algorithmSpec.CipherBlockSize;
@@ -167,7 +135,7 @@ namespace SAFESealing
             var decrypted         = new Byte[numBlocks * usable_blocksize];
 
             // decrypt
-            cipher.Init(CipherMode.DECRYPT_MODE, SenderPublicKey, rng);
+            cipher.InitRSAPublicKey(CipherMode.DECRYPT_MODE, SenderRSAPublicKey, rng);
 
             // we're to process the blocks ourselves.
             var i             = numBlocks;

@@ -16,12 +16,6 @@ namespace SAFESealing
     public class SAFESealSealer
     {
 
-        #region Data
-
-        private readonly CryptoFactoryImpl cryptoFactory;
-
-        #endregion
-
         #region Properties
 
         /// <summary>
@@ -48,8 +42,6 @@ namespace SAFESealing
         private SAFESealSealer(CryptoVariant  KeyAgreementMode   = CryptoVariant.ECDHE_AES,
                                Boolean        CompressionMode    = false)
         {
-
-            this.cryptoFactory     = new CryptoFactoryImpl();
 
             this.KeyAgreementMode  = KeyAgreementMode;
             this.CompressionMode   = CompressionMode;
@@ -92,10 +84,10 @@ namespace SAFESealing
         /// <summary>
         /// Seal a cleartext, encrypting and protecting it for transport.
         /// </summary>
-        /// <param name="SenderPrivateKey">A private key of the sender.</param>
-        /// <param name="SingleRecipientPublicKey">A public key of the single recipient.</param>
+        /// <param name="SenderPrivateKey">An elliptic curve private key of a sender.</param>
+        /// <param name="SingleRecipientPublicKey">An elliptic curve public key of a recipient.</param>
         /// <param name="Cleartext">A cleartext to be sealed for transport.</param>
-        /// <param name="Nonce">A nonce for increasing the entropy. A random number or a monotonic counter is recommended.</param>
+        /// <param name="Nonce">A cryptographic nonce for increasing the entropy. A random number or a monotonic counter is recommended.</param>
         /// <returns>A sealed message.</returns>
         public Byte[] Seal(ECPrivateKeyParameters  SenderPrivateKey,
                            ECPublicKeyParameters   SingleRecipientPublicKey,
@@ -106,9 +98,7 @@ namespace SAFESealing
             try
             {
 
-                return new SAFESeal(
-                               cryptoFactory,
-                               KeyAgreementMode,
+                return new SAFE_EllipticCurve_Seal(
                                CompressionMode
                            ).
 
@@ -131,13 +121,15 @@ namespace SAFESealing
 
         #endregion
 
+        //ToDo: Add RSA!
+
         #region Seal(RawPrivateKeySender, RawPublicKeySingleRecipient, Cleartext, Nonce)  // Do not use!
 
         /// <summary>
         /// Seal a cleartext, encrypting and protecting it for transport.
         /// </summary>
-        /// <param name="RawPrivateKeySender">A private key of a sender as an array of bytes.</param>
-        /// <param name="RawPublicKeySingleRecipient">A public key of a single recipient as an array of bytes.</param>
+        /// <param name="RawPrivateKeySender">A RAW private key of a sender as an array of bytes.</param>
+        /// <param name="RawPublicKeySingleRecipient">A RAW public key of a single recipient as an array of bytes.</param>
         /// <param name="Cleartext">A cleartext to be sealed for transport.</param>
         /// <param name="Nonce">An unique identification assigned to this message. A monotonic counter or similar source is recommended.</param>
         /// <returns>A sealed message.</returns>

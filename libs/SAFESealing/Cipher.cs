@@ -42,6 +42,7 @@ namespace SAFESealing
 
         public Byte[] DoFinal(Byte[] Cleartext)
         {
+            // ToDo(ahzf): aesCipher must be set!
             return aesCipher.TransformFinalBlock(Cleartext, 0, Cleartext.Length);
         }
 

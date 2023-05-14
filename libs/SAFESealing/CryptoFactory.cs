@@ -1,17 +1,21 @@
-﻿using Org.BouncyCastle.Asn1.Sec;
+﻿
+#region Usings
+
+using System.Security.Cryptography;
+
+using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.TeleTrust;
 using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
-using System.Security.Cryptography;
+
+#endregion
 
 namespace SAFESealing
 {
-    public class CryptoFactoryImpl : ICryptoFactory
+    public static class CryptoFactory
     {
 
-
-        public Cipher? GetCipherFromCipherSpec(AlgorithmSpec AlgorithmSpec)
+        public static Cipher? GetCipherFromCipherSpec(AlgorithmSpec AlgorithmSpec)
         {
 
             switch (AlgorithmSpec.CryptoType)
@@ -40,13 +44,13 @@ namespace SAFESealing
 
         }
 
-        public ECDomainParameters? GetEllipticCurve(AlgorithmSpec algorithmSpec)
+        public static ECDomainParameters? GetEllipticCurve(AlgorithmSpec AlgorithmSpec)
         {
 
-            if (algorithmSpec.CryptoType != AlgorithmSpec.CryptoTypes.ELLIPTIC_CURVE)
+            if (AlgorithmSpec.CryptoType != AlgorithmSpec.CryptoTypes.ELLIPTIC_CURVE)
                 throw new Exception("wrong type");
 
-            var curveName  = algorithmSpec.Name;
+            var curveName  = AlgorithmSpec.Name;
 
             var curve      = curveName?.Contains("brain") == true
                                  ? TeleTrusTNamedCurves.GetByName(curveName)
@@ -74,7 +78,8 @@ namespace SAFESealing
          * @param algorithmSpec algorithm spec provided.
          * @return
          */
-        private Cipher GetRSAECB(AlgorithmSpec algorithmSpec)
+        private static Cipher GetRSAECB(AlgorithmSpec AlgorithmSpec)
+
             => new (new RsaEngine()); // corresponds to "RSA/ECB/NoPadding"
 
     }

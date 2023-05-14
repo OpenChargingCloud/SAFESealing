@@ -1,10 +1,10 @@
-﻿using Org.BouncyCastle.Crypto.Parameters;
+﻿
+#region Usings
+
 using Org.BouncyCastle.Security;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Org.BouncyCastle.Crypto.Parameters;
+
+#endregion
 
 namespace SAFESealing
 {
@@ -15,12 +15,17 @@ namespace SAFESealing
     public class SymmetricEncryptionWithIntegrityPadding
     {
 
-        static  String[]                     CHAINING_WITHOUT_DIFFUSION = { "CFB", "OFB", "CTR", "GCM" };
-        private SecureRandom                 rng;
-        private Cipher                       cipher;
-        private Int32                        cipherBlockSize;
-        private InterleavedIntegrityPadding  integrityPaddingInstance;
+        #region Data
 
+        private static readonly String[]                     CHAINING_WITHOUT_DIFFUSION = { "CFB", "OFB", "CTR", "GCM" };
+        private        readonly SecureRandom                 rng;
+        private        readonly Cipher                       cipher;
+        private        readonly Int32                        cipherBlockSize;
+        private        readonly InterleavedIntegrityPadding  integrityPaddingInstance;
+
+        #endregion
+
+        #region Properties
 
         public String Algorithm
             => cipher.AlgorithmName;
@@ -28,39 +33,33 @@ namespace SAFESealing
         public Byte[] IV
             => cipher.IV;
 
+        #endregion
 
-        /**
-         * <p>Constructor for SymmetricEncryptionWithIntegrityPadding.</p>
-         *
-         * @param cipher a {@link javax.crypto.Cipher} encryption cipher handle
-         * @param cryptoFactory a {@link CryptoFactory} cryptoFactory handle
-         * @throws java.security.InvalidKeyException if key is invalid
-         */
-        public SymmetricEncryptionWithIntegrityPadding(Cipher cipher, ICryptoFactory cryptoFactory)
+
+        #region Constructor(s)
+
+        /// <summary>
+        /// Create a new SymmetricEncryptionWithIntegrityPadding.
+        /// </summary>
+        /// <param name="Cipher">The cipher to use.</param>
+        public SymmetricEncryptionWithIntegrityPadding(Cipher Cipher)
         {
 
             // safety check for "bad" chaining. will not catch all bad ones, but the most common-
-            var cipherSpec = cipher.AlgorithmName;
+            var cipherSpec = Cipher.AlgorithmName;
 
             if (CHAINING_WITHOUT_DIFFUSION.Contains(cipherSpec))
                 throw new Exception("NEVER use streaming ciphers which just XOR their stream in combination with this padding!");
 
-            var blockSize  = cipher.BlockSize;
+            var blockSize  = Cipher.BlockSize;
 
             // later implementations may lift this restriction. It is "just" about making sure every block gets a nonce.
             if (blockSize != 16)
                 throw new Exception("this implementation is optimised for blocksize 16");
 
             // current implementation is tuned for an extra block at start
-            Init(cipher);
-
-        }
-
-
-        private void Init(Cipher cipher)
-        {
-            this.cipherBlockSize           = cipher.BlockSize;
-            this.cipher                    = cipher;
+            this.cipherBlockSize           = Cipher.BlockSize;
+            this.cipher                    = Cipher;
             this.integrityPaddingInstance  = new InterleavedIntegrityPadding(cipherBlockSize);
             this.rng                       = new SecureRandom();
 
@@ -68,60 +67,75 @@ namespace SAFESealing
 
         }
 
+        #endregion
 
-        Byte[] EncryptOnly(Byte[] dataToEncrypt, KeyParameter secretKey)
+
+        #region EncryptOnly  (Cleartext, SecretKey)
+
+        /// <summary>
+        /// Encrypt only.
+        /// </summary>
+        /// <param name="Cleartext">A cleartext.</param>
+        /// <param name="SecretKey">A crypto key.</param>
+        public Byte[] EncryptOnly(Byte[]        Cleartext,
+                                  KeyParameter  SecretKey)
         {
 
-            cipher.Init(CipherMode.ENCRYPT_MODE, secretKey, rng); // will create its own iv, and we have to retrieve it later with cipher.getIV();
+            cipher.Init(CipherMode.ENCRYPT_MODE,
+                        SecretKey,
+                        rng); // will create its own iv, and we have to retrieve it later with cipher.getIV();
 
-            return cipher.DoFinal(dataToEncrypt);
+            return cipher.DoFinal(Cleartext);
 
         }
 
+        #endregion
 
-       /**
-         * <p>padAndEncrypt.</p>
-         *
-         * @param input an array of {@link byte} objects
-         * @param secretKey a {@link javax.crypto.SecretKey} object
-         * @return an array of {@link byte} objects
-         */
-        public Byte[] PadAndEncrypt(Byte[] input, KeyParameter secretKey)
+        #region PadAndEncrypt(Cleartext, SecretKey)
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="Cleartext">A cleartext.</param>
+        /// <param name="SecretKey">A crypto key.</param>
+        public Byte[] PadAndEncrypt(Byte[]        Cleartext,
+                                    KeyParameter  SecretKey)
+
+            => EncryptOnly(integrityPaddingInstance.PerformPaddingWithAllocation(Cleartext),
+                           SecretKey);
+
+        #endregion
+
+
+        #region DecryptAndCheck(Ciphertext, SecretKey, InitializationVector = null)
+
+        /// <summary>
+        /// Decrypt and check.
+        /// </summary>
+        /// <param name="Ciphertext">A ciphertext.</param>
+        /// <param name="SecretKey">A crypto key.</param>
+        /// <param name="InitializationVector">An optional cryptographic initialization vector.</param>
+        public Byte[] DecryptAndCheck(Byte[]        Ciphertext,
+                                      KeyParameter  SecretKey,
+                                      Byte[]?       InitializationVector   = null)
         {
 
-            var padded = integrityPaddingInstance.PerformPaddingWithAllocation(input);
+            if (InitializationVector is not null && InitializationVector.Length > 0)
+                cipher.Init(CipherMode.DECRYPT_MODE,
+                            SecretKey,
+                            new IvParameterSpec(InitializationVector)); // Will create its own iv, and we have to retrieve it later with cipher.getIV();
 
-            return EncryptOnly(padded, secretKey);
-
-        }
-
-
-        /**
-         * <p>decryptAndCheck.</p>
-         *
-         * @param input an array of {@link byte} objects
-         * @param secretKey a {@link javax.crypto.SecretKey} object
-         * @param iv an array of {@link byte} objects
-         * @return an array of {@link byte} objects
-         */
-        public Byte[] DecryptAndCheck(Byte[] input, KeyParameter secretKey, Byte[] iv)
-        {
-
-            if (iv != null)
-            {
-                var ivPS = new IvParameterSpec(iv);
-                cipher.Init(CipherMode.DECRYPT_MODE, secretKey, ivPS); // will create its own iv, and we have to retrieve it later with cipher.getIV();
-            }
             else
-                cipher.Init(CipherMode.DECRYPT_MODE, secretKey);
+                cipher.Init(CipherMode.DECRYPT_MODE,
+                            SecretKey);
 
-            var decryptedData  = cipher.DoFinal(input);
-            var payloadData    = integrityPaddingInstance.CheckAndExtract(decryptedData);
+            var decryptedData = cipher.DoFinal(Ciphertext);
 
-            return payloadData;
+            return integrityPaddingInstance.CheckAndExtract(decryptedData);
 
         }
 
+        #endregion
 
 
     }

@@ -1,5 +1,10 @@
-﻿using Org.BouncyCastle.Crypto.Parameters;
+﻿
+#region Usings
+
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Crypto.Parameters;
+
+#endregion
 
 namespace SAFESealing
 {
@@ -14,15 +19,19 @@ namespace SAFESealing
     /// Using a different SecurityProvider/JCE may cause issues with block size.
     /// There's settings in the...
     /// </summary>
-    public class RSAWithIntegrityPadding : IAsymmetricEncryptionWithIIP
+    public class RSAWithIntegrityPadding
     {
 
-        private readonly ICryptoFactory      cryptoFactory;
-        private AlgorithmSpec                algorithmSpec;
-        private Cipher                       cipher;
-        private SecureRandom                 rng;
-        private InterleavedIntegrityPadding  integrityPaddingInstance;
+        #region Data
 
+        private readonly AlgorithmSpec                algorithmSpec;
+        private readonly Cipher                       cipher;
+        private readonly SecureRandom                 rng;
+        private readonly InterleavedIntegrityPadding  integrityPaddingInstance;
+
+        #endregion
+
+        #region Properties
 
         /// <summary>
         /// Return the symmetric IV.
@@ -30,31 +39,40 @@ namespace SAFESealing
         public Byte[] SymmetricIV
             => Array.Empty<Byte>();
 
+        #endregion
+
+        #region Constructor(s)
 
         /// <summary>
         /// Constructor for RSAWithIntegrityPadding.
         /// </summary>
-        /// <param name="spec">a {@link com.metabit.custom.safe.iip.shared.AlgorithmSpec} object</param>
-        public RSAWithIntegrityPadding(ICryptoFactory cryptoFactory, AlgorithmSpec spec)
+        /// <param name="AlgorithmSpec">The (symmetric) encryption algorithm to be used</param>
+        public RSAWithIntegrityPadding(AlgorithmSpec  AlgorithmSpec)
         {
 
-            this.cryptoFactory             = cryptoFactory;
-            this.algorithmSpec             = spec;
+            this.algorithmSpec             = AlgorithmSpec;
+            this.cipher                    = CryptoFactory.GetCipherFromCipherSpec(algorithmSpec);
             this.rng                       = new SecureRandom();
             this.integrityPaddingInstance  = new InterleavedIntegrityPadding(algorithmSpec.UsableBlockSize);
 
         }
 
+        #endregion
+
+
+        //ToDo(ahzf): RSA IIP does not yet use the correct RSA key data structure!
+
+
+        #region PadEncryptAndPackage(Cleartext, OtherSidePublicKey, OurPrivateKey, Diversification)
 
         /// <summary>
         /// Pad encrypt and package.
         /// </summary>
-        /// <param name="Data">An array of {@link byte} objects</param>
+        /// <param name="Cleartext">An array of {@link byte} objects</param>
         /// <param name="OtherSideECPublicKey">a {@link java.security.PublicKey} object</param>
         /// <param name="OurECPrivateKey">a {@link java.security.PrivateKey} object</param>
-        /// <param name="KeyDiversification">an array of {@link byte} objects</param>
-        /// <returns>an array of {@link byte} objects</returns>
-        public Byte[] PadEncryptAndPackage(Byte[]                  Data,
+        /// <param name="KeyDiversification">A cryptographic nonce for increasing the entropy.</param>
+        public Byte[] PadEncryptAndPackage(Byte[]                  Cleartext,
                                            ECPublicKeyParameters   OtherSidePublicKey,
                                            ECPrivateKeyParameters  OurPrivateKey,
                                            Byte[]                  Diversification)
@@ -67,7 +85,7 @@ namespace SAFESealing
             //assert (rsaPrivKey.getModulus().bitLength() == algorithmSpec.getKeySizeInBit()); // must match expected size
 
             // pad
-            var padded = integrityPaddingInstance.PerformPaddingWithAllocation(Data);
+            var padded = integrityPaddingInstance.PerformPaddingWithAllocation(Cleartext);
             //assert (padded.length % usable_blocksize == 0); // if not, our padding has a bug
 
             // encrypt
@@ -92,21 +110,35 @@ namespace SAFESealing
 
         }
 
+        #endregion
 
+        #region PadEncryptAndPackage(Cleartext, RecipientKeys, SenderKey, KeyDiversificationForEC)
 
-        public Byte[] PadEncryptAndPackage(Byte[]                              ContentToSeal,
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="Cleartext"></param>
+        /// <param name="RecipientKeys"></param>
+        /// <param name="SenderKey"></param>
+        /// <param name="KeyDiversificationForEC">A cryptographic nonce for increasing the entropy.</param>
+        public Byte[] PadEncryptAndPackage(Byte[]                              Cleartext,
                                            IEnumerable<ECPublicKeyParameters>  RecipientKeys,
                                            ECPrivateKeyParameters              SenderKey,
                                            Byte[]                              KeyDiversificationForEC)
         {
 
             // Recipient keys are ignored in RSA scheme.
-            return PadEncryptAndPackage(ContentToSeal,
+            return PadEncryptAndPackage(Cleartext,
                                         (ECPublicKeyParameters) null,
                                         SenderKey,
                                         Array.Empty<Byte>());
 
         }
+
+        #endregion
+
+
+        #region DecryptAndVerify(EncryptedData, OtherSidePublicKey, OurPrivateKey, KeyDiversificationForEC, IVForSymmetricCrypto)
 
         /// <summary>
         /// Decrypt and verify.
@@ -116,7 +148,6 @@ namespace SAFESealing
         /// <param name="OurECPrivateKey">a {@link java.security.PrivateKey} object</param>
         /// <param name="KeyDiversificationForEC">an array of {@link byte} objects</param>
         /// <param name="IVForSymmetricCrypto">an array of {@link byte} objects</param>
-        /// <returns>an array of {@link byte} objects</returns>
         public Byte[] DecryptAndVerify(Byte[]                  EncryptedData,
                                        ECPublicKeyParameters   SenderPublicKey,
                                        ECPrivateKeyParameters  RecipientPrivateKey,
@@ -165,6 +196,8 @@ namespace SAFESealing
             return payload;
 
         }
+
+        #endregion
 
     }
 

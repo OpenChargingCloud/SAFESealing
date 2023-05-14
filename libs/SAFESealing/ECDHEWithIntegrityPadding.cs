@@ -1,13 +1,14 @@
 ﻿using Org.BouncyCastle.Crypto;
+
+#region Usings
+
+using System.Security.Cryptography;
+
+using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Security;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
+
+#endregion
 
 namespace SAFESealing
 {
@@ -66,44 +67,44 @@ namespace SAFESealing
             this.keyAgreement         = new ECDHBasicAgreement();
 
             // Cipher symmetricCipher = Cipher.getInstance("AES/ECB/NoPadding"); // default cipher
-            var symmetricCipher       = CryptoFactory.GetCipherFromCipherSpec(AlgorithmSpec);
-            this.symmetricEncryption  = new SymmetricEncryptionWithIntegrityPadding(symmetricCipher, CryptoFactory); // default cipher spec
+            var symmetricCipher       = CryptoFactory.GetCipherFromCipherSpec(this.algorithmSpec);
+            this.symmetricEncryption  = new SymmetricEncryptionWithIntegrityPadding(symmetricCipher, this.cryptoFactory); // default cipher spec
 
         }
 
 
+        #region CreateEphemeralAESKey(OtherSideECPublicKey, OurECPrivateKey, Nonce)
+
         /// <summary>
-        /// Create the ephemeral symmetric key, for AES, given a single recipient
+        /// Create a ephemeral symmetric key for AES encryption (shared secret)
+        /// from one party's private key and another party's public key
+        /// using on Elliptic Curve Diffie-Hellman (ECDH).
         /// </summary>
-        /// <param name="otherSideECPublicKey">public key of the recipient</param>
-        /// <param name="ourECPrivateKey">private key of the sender</param>
-        /// <param name="uniqueID">unique ID as key diversification</param>
+        /// <param name="OtherSideECPublicKey">An elliptic curve public key.</param>
+        /// <param name="OurECPrivateKey">An elliptic curve private key.</param>
+        /// <param name="Nonce">A nonce for increasing the entropy.</param>
         /// <returns>ephemeral secret key</returns>
         KeyParameter CreateEphemeralAESKey(ECPublicKeyParameters   OtherSideECPublicKey,
                                            ECPrivateKeyParameters  OurECPrivateKey,
-                                           Byte[]                  UniqueID)
+                                           Byte[]                  Nonce)
         {
 
             keyAgreement.Init(OurECPrivateKey);
 
             // This is where we use SHA256 for key derivation.
+            // SHA-512 would produce 64 byte keys instead.
             // It is *not* related to the input data in any way!
-            var kdf     = SHA256.Create();  // SHA-512 would produce 64 byte keys instead.
+            var kdf     = SHA256.Create();
             var secret  = keyAgreement.CalculateAgreement(OtherSideECPublicKey).ToByteArray();
-            kdf.TransformBlock     (UniqueID, 0, UniqueID.Length, null, 0);
+            kdf.TransformBlock     (Nonce, 0, Nonce.Length, null, 0);
             kdf.TransformFinalBlock(secret,   0, secret.  Length);
 
             return new KeyParameter(kdf.Hash);
 
-            //@TODO improvement variable size of AES key
-            // kdf.digest(); will provide now 64 bytes since it is SHA-512. AES can take only 16, 24, 32 byte for 128, 192, 256 bit keys.
-            // we would need to cut "n"byte out of the hash result here depending on the AES size specified.
-            //var secretKeySpec  = new SecretKeySpec(kdf.Hash, "AES"); // prepare the key input
-            //var ephKey         = SecretKeyFactory.getInstance("AES").generateSecret(secretKeySpec); // and turn it into an AES key
-
-            //return ephKey;
-
         }
+
+        #endregion
+
 
 
         /// <summary>
@@ -111,11 +112,11 @@ namespace SAFESealing
         /// </summary>
         /// <param name="MultipleRecipientKeys"></param>
         /// <param name="OurECPrivateKey"></param>
-        /// <param name="uniqueID"></param>
+        /// <param name="Nonce"></param>
         /// <returns></returns>
         KeyParameter CreateEphemeralAESKey(IEnumerable<ECPublicKeyParameters>  MultipleRecipientKeys,
                                            ECPrivateKeyParameters              OurECPrivateKey,
-                                           Byte[]                              UniqueID)
+                                           Byte[]                              Nonce)
         {
 
             keyAgreement.Init(OurECPrivateKey);
@@ -127,8 +128,8 @@ namespace SAFESealing
             //@TODO delegate to CryptoFactory
             var kdf     = SHA256.Create();  // SHA-512 would produce 64 byte keys instead.
             var secret  = keyAgreement.CalculateAgreement(MultipleRecipientKeys.First()).ToByteArray();
-            kdf.TransformBlock     (UniqueID, 0, UniqueID.Length, null, 0);
-            kdf.TransformFinalBlock(secret,   0, secret.  Length);
+            kdf.TransformBlock     (Nonce,  0, Nonce. Length, null, 0);
+            kdf.TransformFinalBlock(secret, 0, secret.Length);
 
             return new KeyParameter(kdf.Hash);
 

@@ -98,80 +98,82 @@ namespace SAFESealing
             var nonceWithCounter = SharedCode.Get4ByteUnsignedIntFromBuffer(nonce, 0); // optimisation: instead of modulating the value every time on the nonce value.
 
             // prepare the buffer
-            var bb = new MemoryStream(OutputBuffer);
-            //bb.order(ByteOrder.BIG_ENDIAN); // network byte order defined.
-            //if (bb.hasArray()==false)
-            //    throw new UnsupportedOperationException("something's really wrong with the ByteBuffer in this JRE");
-
-            // heading ("header") block
-            // write ID, shortened if need be.
-            var idSizeUsed = CalculateIDsizeUsed();
-            bb.Write(MAGIC_ID_VERSION_1_0, 0, idSizeUsed);
-
-
-            var randomBytes = new Byte[1];
-
-            // add R0 padding.
-            var numHeaderPaddingBytes = cipherBlockSize - (idSizeUsed + NONCE_SIZE + PAYLOAD_LENGTH_SIZE);
-            while (numHeaderPaddingBytes>0)
-            {
-                rng.NextBytes(randomBytes);
-                bb.WriteByte(randomBytes[0]);
-                numHeaderPaddingBytes--;
-            }
-
-            // we can't use padToBlockSizeWithRandom here since we pad R0 in the *middle* of the header block.
-
-            // write the nonce
-            bb.Write(nonce); // always written at offset cipherBlockSize - (NONCE_SIZE + PAYLOAD_LENGTH_SIZE)
-
-            // write the length of the payload to be reconstructed at recipient side.
-            var ll = BitConverter.GetBytes(Input.Length);
-            bb.Write(ll); // always written at offset cipherBlockSize - PAYLOAD_LENGTH_SIZE
-            //assert (bb.position()==cipherBlockSize); // implementation check: header block exactly complete?
-            // header block complete.
-
-            // now loop through input data and place it to the buffer
-            int offset;
-            for (offset = 0; offset<Input.Length; offset += payloadBytesPerBlock)
+            using (var bb = new MemoryStream(OutputBuffer))
             {
 
-                // pre-increment (not post)
-                nonceWithCounter++;
+                //bb.order(ByteOrder.BIG_ENDIAN); // network byte order defined.
+                //if (bb.hasArray()==false)
+                //    throw new UnsupportedOperationException("something's really wrong with the ByteBuffer in this JRE");
 
-                // java.lang.Math.toIntExact would fail here at wraparound. We have to perform this cast ourselves:
-                var ll2 = BitConverter.GetBytes((Int32)(nonceWithCounter & 0x0FFFFFFFFL));
-                bb.Write(ll2); // place 4 byte integer counter CTR first.
+                // heading ("header") block
+                // write ID, shortened if need be.
+                var idSizeUsed = CalculateIDsizeUsed();
+                bb.Write(MAGIC_ID_VERSION_1_0, 0, idSizeUsed);
 
-                // wenn wir dem ende des blocks näher kommen...
-                var remainder = Input.Length-offset;
-                bb.Write(Input,
-                         offset,
-                         remainder > payloadBytesPerBlock  // min(remainder,payloadBytesPerBlock)
-                             ? payloadBytesPerBlock
-                             : remainder);
+
+                var randomBytes = new Byte[1];
+
+                // add R0 padding.
+                var numHeaderPaddingBytes = cipherBlockSize - (idSizeUsed + NONCE_SIZE + PAYLOAD_LENGTH_SIZE);
+                while (numHeaderPaddingBytes>0)
+                {
+                    rng.NextBytes(randomBytes);
+                    bb.WriteByte(randomBytes[0]);
+                    numHeaderPaddingBytes--;
+                }
+
+                // we can't use padToBlockSizeWithRandom here since we pad R0 in the *middle* of the header block.
+
+                // write the nonce
+                bb.Write(nonce); // always written at offset cipherBlockSize - (NONCE_SIZE + PAYLOAD_LENGTH_SIZE)
+
+                // write the length of the payload to be reconstructed at recipient side.
+                var ll = BitConverter.GetBytes(Input.Length);
+                bb.Write(ll); // always written at offset cipherBlockSize - PAYLOAD_LENGTH_SIZE
+                //assert (bb.position()==cipherBlockSize); // implementation check: header block exactly complete?
+                // header block complete.
+
+                // now loop through input data and place it to the buffer
+                int offset;
+                for (offset = 0; offset<Input.Length; offset += payloadBytesPerBlock)
+                {
+
+                    // pre-increment (not post)
+                    nonceWithCounter++;
+
+                    // java.lang.Math.toIntExact would fail here at wraparound. We have to perform this cast ourselves:
+                    var ll2 = BitConverter.GetBytes((Int32)(nonceWithCounter & 0x0FFFFFFFFL));
+                    bb.Write(ll2); // place 4 byte integer counter CTR first.
+
+                    // wenn wir dem ende des blocks näher kommen...
+                    var remainder = Input.Length-offset;
+                    bb.Write(Input,
+                             offset,
+                             Math.Min(remainder, payloadBytesPerBlock));
+
+                }
+
+                // if last block needs padding, apply it here
+                PadToBlockSizeWithRandom(bb);
+
+                // check if remainder != 0
+                if (Input.Length % payloadBytesPerBlock == 0) // perfect match means trailing block
+                {
+
+                    // append trailing block; only necessary if the r1 was empty
+                    nonceWithCounter++;
+
+                    //@CHECK the java Math.toIntExact() function on signedness. we want an unsigned wrap-around, that's why we use long and Math.toIntExact().
+                    var ll3 = BitConverter.GetBytes((Int32) (nonceWithCounter & 0x0FFFFFFFFL));
+                    bb.Write(ll3); // place 4 byte integer counter CTR.
+                    PadToBlockSizeWithRandom(bb); // fill up
+
+                }
+
+                // with clean block input, this should equal block length
+                return bb.Position; // number of bytes used
 
             }
-
-            // if last block needs padding, apply it here
-            PadToBlockSizeWithRandom(bb);
-
-            // check if remainder != 0
-            if (Input.Length % payloadBytesPerBlock == 0) // perfect match means trailing block
-            {
-
-                // append trailing block; only necessary if the r1 was empty
-                nonceWithCounter++;
-
-                //@CHECK the java Math.toIntExact() function on signedness. we want an unsigned wrap-around, that's why we use long and Math.toIntExact().
-                var ll3 = BitConverter.GetBytes((Int32) (nonceWithCounter & 0x0FFFFFFFFL));
-                bb.Write(ll3); // place 4 byte integer counter CTR.
-                PadToBlockSizeWithRandom(bb); // fill up
-
-            }
-
-            // with clean block input, this should equal block length
-            return bb.Position; // number of bytes used
 
         }
 

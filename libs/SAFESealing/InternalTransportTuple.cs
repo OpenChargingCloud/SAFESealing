@@ -14,54 +14,58 @@ namespace SAFESealing
     public class InternalTransportTuple
     {
 
-        public CryptoSettingsStruct  CryptoSettings            { get; set; }
+        #region Properties
 
+        public CryptoSettingsStruct  CryptoSettings            { get; }
         public Byte[]?               CryptoIV                  { get; set; }
         public Byte[]?               EncryptedData             { get; set; }
+        public Byte[]                KeyDiversificationData    { get; }
 
-        public Byte[]?               KeyDiversificationData    { get; set; }
+        #endregion
 
-        public void SetDiversification(Int64 NumericalValue)
+        #region Constructor(s)
+
+        public InternalTransportTuple(CryptoSettingsStruct  CryptoSettings,
+                                      Byte[]                CryptoIV,
+                                      Byte[]                EncryptedData,
+                                      Byte[]                KeyDiversificationData)
         {
-            KeyDiversificationData = BitConverter.GetBytes(NumericalValue);
+
+            this.CryptoSettings          = CryptoSettings;
+            this.CryptoIV                = CryptoIV;
+            this.EncryptedData           = EncryptedData;
+            this.KeyDiversificationData  = KeyDiversificationData;
+
         }
 
 
-
-        /// <summary>
-        /// Create a new InternalTransportTuple.
-        /// </summary>
-        /// <param name="css">css a {@link com.metabit.custom.safe.safeseal.impl.CryptoSettingsStruct} object</param>
-        public InternalTransportTuple(CryptoSettingsStruct CryptoSettings)
-        {
-            this.CryptoSettings = CryptoSettings;
-        }
-
-
-        public InternalTransportTuple(Boolean WithKeyAgreement)
+        public InternalTransportTuple(CryptoVariant  WithKeyAgreement,
+                                      Byte[]?        KeyDiversificationData   = null)
         {
 
-            this.CryptoSettings = WithKeyAgreement
+            this.CryptoSettings          = WithKeyAgreement == CryptoVariant.ECDHE_AES
 
-                                      ? new CryptoSettingsStruct(
-                                            AlgorithmSpecCollection.ECDH,
-                                            AlgorithmSpecCollection.ECSECP256R1,
-                                            AlgorithmSpecCollection.SHA256,
-                                            AlgorithmSpecCollection.AES256CBC,
-                                            AlgorithmSpecCollection.COMPRESSION_NONE
-                                        )
+                                               ? new CryptoSettingsStruct(
+                                                     AlgorithmSpecCollection.ECDH,
+                                                     AlgorithmSpecCollection.ECSECP256R1,
+                                                     AlgorithmSpecCollection.SHA256,
+                                                     AlgorithmSpecCollection.AES256CBC,
+                                                     AlgorithmSpecCollection.COMPRESSION_NONE
+                                                 )
 
-                                      : new CryptoSettingsStruct(
-                                            null,
-                                            null,
-                                            null,
-                                            AlgorithmSpecCollection.RSA2048,
-                                            AlgorithmSpecCollection.COMPRESSION_NONE
-                                        );
+                                               : new CryptoSettingsStruct(
+                                                     null,
+                                                     null,
+                                                     null,
+                                                     AlgorithmSpecCollection.RSA2048,
+                                                     AlgorithmSpecCollection.COMPRESSION_NONE
+                                                 );
 
-            //@TODO still, add the magic
+            this.KeyDiversificationData  = KeyDiversificationData ?? Array.Empty<Byte>();
 
         }
+
+        #endregion
 
 
     }

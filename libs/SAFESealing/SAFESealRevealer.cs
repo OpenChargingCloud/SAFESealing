@@ -28,7 +28,7 @@ namespace SAFESealing
         /// Flag shorthand for NONE (==RSA+IIP) or ECDHE.
         /// Later versions may use an enum.
         /// </summary>
-        public Boolean  KeyAgreementMode    { get; }
+        public CryptoVariant  KeyAgreementMode    { get; }
 
         #endregion
 
@@ -37,8 +37,8 @@ namespace SAFESealing
         /// <summary>
         /// Create a new SAFE seal revealer.
         /// </summary>
-        /// <param name="KeyAgreementMode">Flag shorthand for NONE (==RSA+IIP) or ECDHE. Later versions may use an enum.</param>
-        public SAFESealRevealer(Boolean KeyAgreementMode = false)
+        /// <param name="KeyAgreementMode">Whether to use ECDHE+AES or RSA cryptography.</param>
+        public SAFESealRevealer(CryptoVariant KeyAgreementMode = CryptoVariant.ECDHE_AES)
         {
 
             this.cryptoFactory     = new CryptoFactoryImpl();
@@ -50,7 +50,7 @@ namespace SAFESealing
         #endregion
 
 
-        #region Reveal(SenderPublicKey, RecipientPrivateKey, SealedMessage)
+        #region Reveal(SenderPublicKey,    RecipientPrivateKey,    SealedMessage)
 
         /// <summary>
         /// Verify and reveal a sealed message.
@@ -88,17 +88,17 @@ namespace SAFESealing
 
         #endregion
 
-        #region Reveal(RawPublicKeySender, RawPrivateKeyRecipient, SealedMessage)
+        #region Reveal(RawSenderPublicKey, RawRecipientPrivateKey, SealedMessage)
 
         /// <summary>
         /// Verify and reveal a sealed message.
         /// </summary>
-        /// <param name="RawPublicKeySender">A public key of a sender as an array of bytes.</param>
-        /// <param name="RawPrivateKeyRecipient">A private key of a recipient as an array of bytes.</param>
+        /// <param name="RawSenderPublicKey">A public key of a sender as an array of bytes.</param>
+        /// <param name="RawRecipientPrivateKey">A private key of a recipient as an array of bytes.</param>
         /// <param name="SealedMessage">A sealed message.</param>
         /// <returns>The verified cleartext.</returns>
-        public Byte[] Reveal(Byte[] RawPublicKeySender,
-                             Byte[] RawPrivateKeyRecipient,
+        public Byte[] Reveal(Byte[] RawSenderPublicKey,
+                             Byte[] RawRecipientPrivateKey,
                              Byte[] SealedMessage)
         {
             // todo perform deterministic conversion from bytearrays to keys.
@@ -107,6 +107,7 @@ namespace SAFESealing
         }
 
         #endregion
+
 
     }
 

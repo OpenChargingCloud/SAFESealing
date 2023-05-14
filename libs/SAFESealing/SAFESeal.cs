@@ -1,4 +1,5 @@
-﻿#region Usings
+﻿
+#region Usings
 
 using System.IO.Compression;
 using System.Text.RegularExpressions;
@@ -9,6 +10,13 @@ using Org.BouncyCastle.Crypto.Parameters;
 
 namespace SAFESealing
 {
+
+    public enum CryptoVariant
+    {
+        ECDHE_AES,
+        RSA
+    }
+
 
     /// <summary>
     /// Sealing and revealing of OCMF messages according to SAFE e.V. specifications.
@@ -27,16 +35,15 @@ namespace SAFESealing
         #region Properties
 
         /// <summary>
-        /// Flag shorthand for NONE (==RSA+IIP) or ECDHE.
-        /// Later versions may use an enum.
+        /// Whether to use ECDHE+AES or RSA cryptography.
         /// </summary>
-        public  Boolean  KeyAgreementMode    { get;}
+        public CryptoVariant  KeyAgreementMode    { get;}
 
         /// <summary>
         /// Flag shorthand for NONE or ZLIB.
         /// Later versions may use an enum.
         /// </summary>
-        public  Boolean  CompressionMode     { get; private set; }
+        public  Boolean       CompressionMode     { get; private set; }
 
         #endregion
 
@@ -46,10 +53,10 @@ namespace SAFESealing
         /// Create a new SAFE seal.
         /// </summary>
         /// <param name="CryptoFactory">A crypto factory.</param>
-        /// <param name="KeyAgreementMode">Flag shorthand for NONE (==RSA+IIP) or ECDHE. Later versions may use an enum.</param>
+        /// <param name="KeyAgreementMode">Whether to use ECDHE+AES or RSA cryptography.</param>
         /// <param name="CompressionMode">Flag shorthand for NONE or ZLIB. Later versions may use an enum.</param>
         public SAFESeal(ICryptoFactory  CryptoFactory,
-                        Boolean         KeyAgreementMode,
+                        CryptoVariant   KeyAgreementMode,
                         Boolean         CompressionMode   = false)
         {
 
@@ -63,7 +70,7 @@ namespace SAFESealing
         #endregion
 
 
-        #region Seal  (Cleartext,   SenderPrivateKey,    RecipientPublicKeys, UniqueId)
+        #region Seal  (Cleartext,   SenderPrivateKey,    RecipientPublicKeys, Nonce)
 
         /// <summary>
         /// Seal contents: perform calculation of ephemeral key, padding, encryption, and formatting for transport.
@@ -71,23 +78,20 @@ namespace SAFESealing
         /// <param name="Cleartext">A cleartext for sealed transport.</param>
         /// <param name="SenderPrivateKey">A sender private key (caller's key).</param>
         /// <param name="RecipientPublicKeys">A recipient public key(s).</param>
-        /// <param name="UniqueId">A unique identification to be provided e.g. from a monotonic counter.</param>
+        /// <param name="Nonce">A nonce for increasing the entropy. A random number or a monotonic counter is recommended.</param>
         /// <returns>The wrapped and sealed message.</returns>
         public Byte[] Seal(Byte[]                              Cleartext,
                            ECPrivateKeyParameters              SenderPrivateKey,
                            IEnumerable<ECPublicKeyParameters>  RecipientPublicKeys,
-                           Int64                               UniqueId)
+                           Byte[]                              Nonce)
         {
 
-            var itt = KeyAgreementMode
-                          ? new InternalTransportTuple(true)   // ECDHE + AES
-                          : new InternalTransportTuple(false); // RSA
+            var itt = new InternalTransportTuple(KeyAgreementMode, Nonce);
 
-            if (KeyAgreementMode)
+            if (KeyAgreementMode == CryptoVariant.ECDHE_AES)
             {
                 // ECDHE + AES
                 asymmetricLayer = new ECDHEWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.AES256ECB);
-                itt.SetDiversification(UniqueId);
             }
             else
             {
@@ -168,7 +172,7 @@ namespace SAFESealing
 
 
             // @IMPROVEMENT for later versions: allow to for a more flexible selection of algorithms.
-            asymmetricLayer     = KeyAgreementMode
+            asymmetricLayer     = KeyAgreementMode == CryptoVariant.ECDHE_AES
 
                                       ? new ECDHEWithIntegrityPadding(cryptoFactory, AlgorithmSpecCollection.AES256ECB)
 

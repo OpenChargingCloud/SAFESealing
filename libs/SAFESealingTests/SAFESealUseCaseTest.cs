@@ -1,15 +1,13 @@
 ﻿
 #region Usings
 
-using System.Text;
-
+using NUnit.Framework;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
-
-using NUnit.Framework;
+using System.Text;
 
 #endregion
 
@@ -94,27 +92,34 @@ namespace SAFESealing.Tests
         {
 
             Assert.IsNotNull(senderPrivateKey);
-            Assert.IsNotNull(recipientPublicKey);
             Assert.IsNotNull(senderPublicKey);
             Assert.IsNotNull(recipientPrivateKey);
+            Assert.IsNotNull(recipientPublicKey);
 
-            var testPayload      = Encoding.UTF8.GetBytes("SAFE eV");
-            var testUnique       = (Int64) 23; // DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            if (senderPrivateKey    is not null &&
+                senderPublicKey     is not null &&
+                recipientPrivateKey is not null &&
+                recipientPublicKey  is not null)
+            {
 
-            // SENDER performs sealing
-            var uwe              = new SAFESealSealer(true);
-            var sealedData       = uwe.Seal(senderPrivateKey!,
-                                            recipientPublicKey!,
-                                            testPayload,
-                                            testUnique);
+                var cleartext1   = Encoding.UTF8.GetBytes("SAFE e.V.");
+                var testNonce    = BitConverter.GetBytes(23); // DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-            // RECIPIENT performs revealing
-            var revealer         = new SAFESealRevealer(true);
-            var receivedPayload  = revealer.Reveal(senderPublicKey!,
-                                                   recipientPrivateKey!,
-                                                   sealedData);
+                // SENDER performs sealing
+                var sealedData   = SAFESealSealer.ECDHE_AES().
+                                                  Seal(senderPrivateKey!,
+                                                       recipientPublicKey!,
+                                                       cleartext1,
+                                                       testNonce);
 
-            Assert.AreEqual(testPayload, receivedPayload);
+                // RECIPIENT performs revealing
+                var cleartext2   = new SAFESealRevealer().Reveal(senderPublicKey!,
+                                                                 recipientPrivateKey!,
+                                                                 sealedData);
+
+                Assert.AreEqual(cleartext1, cleartext2);
+
+            }
 
         }
 

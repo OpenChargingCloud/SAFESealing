@@ -1,11 +1,11 @@
-﻿using Org.BouncyCastle.Asn1;
-using Org.BouncyCastle.Asn1.Utilities;
-using System;
-using System.Collections.Generic;
+﻿
+#region Usings
+
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+
+using Org.BouncyCastle.Asn1;
+
+#endregion
 
 namespace SAFESealing
 {
@@ -68,7 +68,7 @@ namespace SAFESealing
             // prepare second part
             var keyAgreementPart = new Asn1EncodableVector();
 
-            if (keyAgreementProtocolOID != null) // used only if this layer is activated
+            if (keyAgreementProtocolOID is not null) // used only if this layer is activated
             {
                 keyAgreementPart.Add(keyAgreementProtocolOID);
                 keyAgreementPart.Add(new DerOctetString(ids.KeyDiversificationData));
@@ -79,31 +79,31 @@ namespace SAFESealing
                     keyAgreementPart.Add(new DerTaggedObject(1, ecAlgorithmOID));
 
                 // the usual sequence for ECDetails would be: SEQUENCE (OID_ECDH_PUBLIC_KEY, OID_EC_NAMED_CURVE_SECP_256_R1, 03 nn xxxx data)
-                if (ecDetails != null)
+                if (ecDetails is not null)
                     keyAgreementPart.Add(new DerTaggedObject(2, new DerSequence(ecDetails)));
                 // optional: public key references)
-                if (keyReference != null)
+                if (keyReference is not null)
                     keyAgreementPart.Add(new DerTaggedObject(3, new DerSequence(keyReference))); // optional: the public key references
             }
 
-            var secondSequence = new DerTaggedObject(1, new DerSequence(keyAgreementPart));
+            var secondSequence        = new DerTaggedObject(1, new DerSequence(keyAgreementPart));
 
-            var authenticityPart = new Asn1EncodableVector();
+            var authenticityPart      = new Asn1EncodableVector();
             // auth part not in use in version 1, so this sequence is empty.
             // authenticityPart.add(OID_SAFE_SEAL_AUTH);
-            var thirdSequence = new DerTaggedObject(2, new DerSequence(authenticityPart));
+            var thirdSequence         = new DerTaggedObject(2, new DerSequence(authenticityPart));
 
             // top-level sequence
-            var bufferStream = new MemoryStream();
-            var _out         = new DerSequenceGenerator(bufferStream);
+            var bufferStream          = new MemoryStream();
+            var derSequenceGenerator  = new DerSequenceGenerator(bufferStream);
 
-            _out.AddObject(SharedConstants.OID_SAFE_SEAL);
-            _out.AddObject(new DerInteger(SharedConstants.SAFE_SEAL_VERSION));
-            _out.AddObject(firstSequence);
-            _out.AddObject(secondSequence);
-            _out.AddObject(thirdSequence);
-            _out.AddObject(new DerOctetString(ids.EncryptedData));
-            _out.Close();
+            derSequenceGenerator.AddObject(SharedConstants.OID_SAFE_SEAL);
+            derSequenceGenerator.AddObject(new DerInteger(SharedConstants.SAFE_SEAL_VERSION));
+            derSequenceGenerator.AddObject(firstSequence);
+            derSequenceGenerator.AddObject(secondSequence);
+            derSequenceGenerator.AddObject(thirdSequence);
+            derSequenceGenerator.AddObject(new DerOctetString(ids.EncryptedData));
+            derSequenceGenerator.Close();
 
             // bufferStream.write(0x00); bufferStream.write(0x00); // explicit EOC/EOS - fully optional, but safer.
             return bufferStream.ToArray();
@@ -122,13 +122,9 @@ namespace SAFESealing
          *
          * @param transportWrapped wrapped binary data
          * @return InternalTransportTuple containing parsed input
-         * @throws java.lang.IllegalArgumentException if the input is invalid, whether because of format or consistency issues. NB: do not pass on details to caller.
-         * @throws java.lang.UnsupportedOperationException if any.
          */
-        public InternalTransportTuple UnwrapTransportFormat(Byte[] transportWrapped)
+        public InternalTransportTuple? UnwrapTransportFormat(Byte[] TransportWrapped)
         {
-
-            var result = new InternalTransportTuple(false); // init for RSA, so defaults are minimal. @IMPROVEMENT special constructor setting everything to null
 
             Asn1TaggedObject  keyAgreementPart;
             Asn1TaggedObject  encryptionPart;
@@ -138,21 +134,18 @@ namespace SAFESealing
             try
             {
 
-                var seq               = Asn1Sequence.GetInstance(transportWrapped);
+                var seq                     = Asn1Sequence.GetInstance(TransportWrapped);
 
                 // first, check we've got the right thing at all.
-                var procedureOID      = DerObjectIdentifier.GetInstance(seq[0]);
-                var procedureVersion  = DerInteger.GetInstance(seq[1]);
+                var protocolIdentification  = DerObjectIdentifier.GetInstance(seq[0]);   // 1.3.6.1.4.1.60279.1.1 => S.A.F.E. e.V. IANA Private Enterprise Number
+                var protocolVersion         = DerInteger.         GetInstance(seq[1]);   // 1                     => SAFE Sealing version
 
                 // is it our procedure, and do we handle this version?
-                if (!SharedConstants.OID_SAFE_SEAL.Equals(procedureOID))
-                    throw new Exception("different format (protocol OID mismatch)");
+                if (!SharedConstants.OID_SAFE_SEAL.Equals(protocolIdentification))
+                    throw new Exception($"Unkown protocol identification '{protocolIdentification.Id}'!");
 
-                switch (procedureVersion.IntPositiveValueExact)
+                switch (protocolVersion.IntPositiveValueExact)
                 {
-
-                    default:
-                        throw new Exception("format version not supported");
 
                     case 1: // SAFE_SEAL_VERSION: // OK, let's continue.
                         // read according to expected structure.
@@ -162,12 +155,18 @@ namespace SAFESealing
                         encryptedPayload    = DerOctetString.  GetInstance(seq[5]);
                         break;
 
+                    default:
+                        throw new Exception($"Unkown protocol version '{protocolVersion.IntPositiveValueExact}'!");
+
                 }
 
                 // read back
                 // if compression is not present, use default COMPRESSION_NONE
-                result.EncryptedData = encryptedPayload.GetOctets(); // this we just pass on.
+                var encryptedData           = encryptedPayload.GetOctets();
 
+                var cryptoIV                = Array.Empty<Byte>();
+                var keyDiversificationData  = Array.Empty<Byte>();
+                var cryptoSettings          = new CryptoSettingsStruct();
 
 
                 //# parse the encryption part
@@ -181,15 +180,15 @@ namespace SAFESealing
                     switch (entry.GetType().Name)
                     {
 
-                        case "DEROctetString":
-                            result.CryptoIV = DerOctetString.GetInstance(entry).GetOctets();
+                        case "DerOctetString":
+                            cryptoIV = DerOctetString.GetInstance(entry).GetOctets();
                             break;
 
-                        case "Asn1ObjectIdentifier":
-                            result.CryptoSettings.SetPaddingOID(DerObjectIdentifier.GetInstance(entry));
+                        case "DerObjectIdentifier":
+                            cryptoSettings.SetPaddingOID(DerObjectIdentifier.GetInstance(entry));
                             break;
 
-                        case "DLTaggedObject":
+                        case "DerTaggedObject":
                         case "DLApplicationSpecific":
                             var taggedObject = Asn1TaggedObject.GetInstance(entry);
                             //if (taggedObject.GetTagClass() != BERTags.CONTEXT_SPECIFIC)
@@ -202,15 +201,15 @@ namespace SAFESealing
                             {
 
                                 case 0: // CONTEXT[0] OID is the encryption algorithm OID
-                                    result.CryptoSettings.SetEncryptionOID(DerObjectIdentifier.GetInstance(taggedObject.GetObject()));// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
+                                    cryptoSettings.SetEncryptionOID(DerObjectIdentifier.GetInstance(taggedObject.GetObject()));// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
                                     break;
 
                                 case 1: // CONTEXT[1] OID is the compression algorithm OID
-                                    result.CryptoSettings.SetCompressionOID(DerObjectIdentifier.GetInstance(taggedObject.GetObject()));// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
+                                    cryptoSettings.SetCompressionOID(DerObjectIdentifier.GetInstance(taggedObject.GetObject()));// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
                                     break;
 
                                 case 2: // CONTEXT[2] INTEGER is the optional keysize in bit
-                                    result.CryptoSettings.EncryptionKeySize = (UInt32) ((DerInteger) taggedObject.GetObject()).Value.IntValue;
+                                    cryptoSettings.EncryptionKeySize = (UInt32) ((DerInteger) taggedObject.GetObject()).Value.IntValue;
                                         //taggedObject.getBaseUniversal(true,BERTags.INTEGER)).intPositiveValueExact();
                                     break;
 
@@ -246,11 +245,11 @@ namespace SAFESealing
                         {
 
                             case "Asn1ObjectIdentifier":
-                                result.CryptoSettings.SetKeyAgreementProtocolByOID(DerObjectIdentifier.GetInstance(entry));
+                                cryptoSettings.SetKeyAgreementProtocolByOID(DerObjectIdentifier.GetInstance(entry));
                                 break;
 
                             case "DerOctetString":
-                                result.KeyDiversificationData  = DerOctetString.GetInstance(entry).GetOctets();
+                                keyDiversificationData = DerOctetString.GetInstance(entry).GetOctets();
                                 break;
 
                             case "DLTaggedObject":
@@ -269,12 +268,12 @@ namespace SAFESealing
 
                                     case 0: // CONTEXT[0] key diversification algorithm OID
                                         keyDiversificationOID = DerObjectIdentifier.GetInstance(taggedObject.GetObject());// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER));
-                                        result.CryptoSettings.SetKeyDiversificationOID(keyDiversificationOID);
+                                        cryptoSettings.SetKeyDiversificationOID(keyDiversificationOID);
                                         break;
 
                                     case 1: // CONTEXT[1] EC Algorithm OID
                                         ecAlgorithmOID = DerObjectIdentifier.GetInstance(taggedObject.GetObject());// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER));
-                                        result.CryptoSettings.SetKeyAgreementCipherOID(ecAlgorithmOID); // will fail if algorithm isn't known in AlgorithmSpecCollection.
+                                        cryptoSettings.SetKeyAgreementCipherOID(ecAlgorithmOID); // will fail if algorithm isn't known in AlgorithmSpecCollection.
                                         break;
 
                                     case 2:
@@ -296,7 +295,7 @@ namespace SAFESealing
                     }
 
                 //# authentication part parsing
-                if (authPart != null)
+                if (authPart is not null)
                 {
 
                     //var apseq = (DLSequence) authPart.getBaseUniversal(true, BERTags.SEQUENCE);
@@ -309,9 +308,16 @@ namespace SAFESealing
 
                 }
 
+                var itt = new InternalTransportTuple(cryptoSettings,
+                                                     cryptoIV,
+                                                     encryptedData,
+                                                     keyDiversificationData);
+
                 // validation of contents read
-                if (result.CryptoSettings.validate() == false)
+                if (itt.CryptoSettings.validate() == false)
                     throw new Exception("format consistency error");
+
+                return itt;
 
             }
             catch (Exception e)
@@ -319,7 +325,7 @@ namespace SAFESealing
                 Debug.WriteLine(e);
             }
 
-            return result;
+            return null;
 
         }
 

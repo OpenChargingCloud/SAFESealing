@@ -1,11 +1,4 @@
 ﻿using Org.BouncyCastle.Asn1;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
-using System.Threading.Tasks;
-
 
 namespace SAFESealing
 {
@@ -52,14 +45,20 @@ namespace SAFESealing
         }
 
 
-    /// <summary>
-    /// Constructor for the defined use cases, initialising with default values.
-    /// </summary>
-    /// <param name="WithKeyAgreement">When false: RSA 2048 with IIP; RSA/ECB/NoPadding+IIP at 2048 bit, else: ECDHE with secp256r1 and AES/CBC 256 bit.</param>
-    public CryptoSettingsStruct(Boolean WithKeyAgreement)
+        public CryptoSettingsStruct()
         {
 
-            if (WithKeyAgreement) {
+        }
+
+
+        /// <summary>
+        /// Constructor for the defined use cases, initialising with default values.
+        /// </summary>
+        /// <param name="WithKeyAgreement">When false: RSA 2048 with IIP; RSA/ECB/NoPadding+IIP at 2048 bit, else: ECDHE with secp256r1 and AES/CBC 256 bit.</param>
+        public CryptoSettingsStruct(CryptoVariant WithKeyAgreement)
+        {
+
+            if (WithKeyAgreement == CryptoVariant.ECDHE_AES) {
                 this.Compression                  = AlgorithmSpecCollection.COMPRESSION_NONE;
                 this.Padding                      = AlgorithmSpecCollection.IIP;
                 this.Encryption                   = AlgorithmSpecCollection.AES256CBC;

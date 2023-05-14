@@ -82,7 +82,7 @@ namespace SAFESealing
                                          null,
                                          privateKeyLength
                                      ),
-                                     asymmetricLayer.SymmetricIV,
+                                     asymmetricLayer.SymmetricIV,  //ToDo(ahzf): This is allways null!?
                                      Array.Empty<Byte>(),
                                      Array.Empty<Byte>()
                                  );

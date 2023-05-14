@@ -3,7 +3,6 @@
 
 using System.Security.Cryptography;
 
-using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.Parameters;
 
@@ -13,7 +12,7 @@ namespace SAFESealing
 {
 
     /// <summary>
-    /// Performs IIP with symmetric keys derived from an ECDHE procedure.
+    /// Performs Interleaved Integrity Padding using AES and Elliptic Curve Diffie-Hellman Ephemeral (ECDHE) for shared keys.
     /// </summary>
     public class ECDHEWithIntegrityPadding
     {
@@ -39,7 +38,7 @@ namespace SAFESealing
         #region Constructor(s)
 
         /// <summary>
-        /// Constructor for Elliptic Curve Diffie-Hellman Ephemeral (ECDHE) IIP.
+        /// Create a new Interleaved Integrity Padding using AES and Elliptic Curve Diffie-Hellman Ephemeral (ECDHE) for shared keys.
         /// </summary>
         /// <param name="AlgorithmSpec">The (symmetric) encryption algorithm to be used</param>
         public ECDHEWithIntegrityPadding(AlgorithmSpec  AlgorithmSpec)
@@ -49,6 +48,7 @@ namespace SAFESealing
             this.keyAgreement         = new ECDHBasicAgreement();
             this.symmetricEncryption  = new SymmetricEncryptionWithIntegrityPadding(
                                             CryptoFactory.GetCipherFromCipherSpec(this.algorithmSpec)
+                                                ?? throw new ArgumentNullException(nameof(AlgorithmSpec), "Invalid (symmetric) encryption algorithm!")
                                         );
 
         }

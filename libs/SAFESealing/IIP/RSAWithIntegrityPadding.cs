@@ -15,7 +15,18 @@ namespace SAFESealing
 {
 
     /// <summary>
-    /// Performs Interleaved Integrity Padding using RSA/ECB.
+    /// Performs Interleaved Integrity Padding using RSA/ECB/NoPadding.
+    /// 
+    /// Here we use the private and public keys of RSA with swapped roles.
+    /// This "reverse operation" has a special use case: digital signatures.
+    /// 
+    /// When you "encrypt" a message (or more commonly, a hash of a message)
+    /// with your private key, anyone can "decrypt" it with your public key,
+    /// thus verifying that the message came from you and hasn't been tampered
+    /// with. This is because only you should have access to your private key.
+    /// This operation doesn't provide confidentiality (since anyone with your
+    /// public key can "decrypt" the message), but it does provide a level of
+    /// authenticity and non-repudiation.
     /// 
     /// Caveat: the MSB of an RSA block is unavailable, since it must be set;
     /// some SecurityProvider implementations may chose to block a byte or more.
@@ -24,7 +35,7 @@ namespace SAFESealing
     {
 
         // RSA/ECB/NoPadding == default
-        // RSA/CBC + IV
+        // RSA/CBC + IV ???
         // Everything else should be avoided.
 
         #region Data
@@ -96,22 +107,24 @@ namespace SAFESealing
                                            RSAPrivateKey  OurRSAPrivateKey)
         {
 
-            var rsaBlocksize     = algorithmSpec.CipherBlockSize;
-            var usableBlocksize  = algorithmSpec.UsableBlockSize;
+            var padded          = integrityPaddingInstance.PerformPaddingWithAllocation(Plaintext);
 
-            var padded           = integrityPaddingInstance.PerformPaddingWithAllocation(Plaintext);
-            //assert (padded.length % usable_blocksize == 0); // if not, our padding has a bug
+            if (padded.Length % algorithmSpec.UsableBlockSize != 0)
+                throw new Exception("The length of the given plaintext doesn't match the key size!");
+
 
             // Here we init RSA with the PRIVATE KEY!
-            // So just the other way round as normally done!
-            rsaEngine.Init(true, OurRSAPrivateKey.Key); 
-            //assert (rsaPrivKey.getModulus().bitLength() == algorithmSpec.getKeySizeInBit()); // must match expected size
+            // So just the other way round as normally done
+            // in order to use RSA as a digital signature signer!
+            rsaEngine.Init(true,
+                           OurRSAPrivateKey.Key); 
 
-            // rsa will support single blocks only, so we have to split ourselves.
-            var inputLength      = (UInt32) padded.Length;
-            var outputLength     = inputLength  / usableBlocksize * rsaBlocksize; // scaling from one to the other
-            var encrypted        = new Byte[outputLength];
-            var numBlocksInput   = outputLength / rsaBlocksize;
+            // RSA will support single blocks only...
+            // therefore, we have to split them ourselves.
+            var inputLength     = (UInt32) padded.Length;
+            var outputLength    = inputLength  / algorithmSpec.UsableBlockSize * algorithmSpec.CipherBlockSize; // scaling from one to the other
+            var encrypted       = new Byte[outputLength];
+            var numBlocksInput  = outputLength / algorithmSpec.CipherBlockSize;
 
 
             // ChatGPT (GPT-4 2023-05-15) seems really to worry what we are doing here!
@@ -136,25 +149,17 @@ namespace SAFESealing
             // In summary, you can call ProcessBlock multiple times, but be aware of the security
             // implications and data size restrictions.
 
-
-            //for (var i = 0U; i < numBlocksInput; i++)
-            //    cipher.doFinal(padded,
-            //                   (Int32) (i * usableBlocksize),
-            //                   (Int32) usableBlocksize,
-            //                   encrypted,
-            //                   (Int32) (i * rsaBlocksize)); // different blocksizes. Details matter.
-
             for (var i = 0U; i < numBlocksInput; i++)
             {
 
                 var tmp = rsaEngine.ProcessBlock(padded,
-                                                 (Int32) (i * usableBlocksize),
-                                                 (Int32) usableBlocksize); // different blocksizes. Details matter.
+                                                 (Int32) (i * algorithmSpec.UsableBlockSize),
+                                                 (Int32)      algorithmSpec.UsableBlockSize); // different blocksizes. Details matter.
 
                 Array.Copy(tmp,
                            0,
                            encrypted,
-                           (Int32) (i * rsaBlocksize),
+                           (Int32) (i * algorithmSpec.CipherBlockSize),
                            tmp.Length);
 
             }
@@ -179,16 +184,17 @@ namespace SAFESealing
                                        RSAPublicKey  SenderRSAPublicKey)
         {
 
-            var rsaBlocksize      = algorithmSpec.CipherBlockSize;
-            var usableBlocksize   = algorithmSpec.UsableBlockSize;
+            if (Ciphertext.Length % algorithmSpec.CipherBlockSize != 0)
+                throw new Exception("The length of the given ciphertext doesn't match the key size!");
 
-            if (Ciphertext.Length % rsaBlocksize != 0)
-                throw new Exception("input length doesn't fit with key size");
+            var numBlocks     = Ciphertext.Length / algorithmSpec.CipherBlockSize;
+            var decrypted     = new Byte[numBlocks * algorithmSpec.UsableBlockSize];
 
-            var numBlocks         = Ciphertext.Length / rsaBlocksize; // because of previous check, this is clean
-            var decryptedLength   = Ciphertext.Length;                 // same
-
-            var decrypted         = new Byte[numBlocks * usableBlocksize];
+            // Here we init RSA with the PUBLIC KEY!
+            // So just the other way round as normally done
+            // in order to use RSA as a digital signature verifier!
+            rsaEngine.Init(false,
+                           SenderRSAPublicKey.Key);
 
 
             // ChatGPT (GPT-4 2023-05-15) seems really to worry what we are doing here!
@@ -198,26 +204,16 @@ namespace SAFESealing
             // However, for educational purposes, here's how to decrypt a byte array
             // using RSA 2048 with BouncyCastle in C#.
 
-            //cipher.InitRSAPublicKey(CipherMode.DECRYPT_MODE, SenderRSAPublicKey, new SecureRandom());
-            rsaEngine.Init(false, SenderRSAPublicKey.Key);
-
-
-            var i                 = numBlocks;
-            var inputOffset       = 0U;
-            var outputOffset      = 0U;
+            var i             = numBlocks;
+            var inputOffset   = 0U;
+            var outputOffset  = 0U;
 
             while (i > 0)
             {
 
-                // cipher.doFinal(Ciphertext,
-                //                (Int32) inputOffset,
-                //                (Int32) rsaBlocksize,
-                //                decrypted,
-                //                (Int32) outputOffset);
-
                 var tmp = rsaEngine.ProcessBlock(Ciphertext,
                                                  (Int32) inputOffset,
-                                                 (Int32) rsaBlocksize);
+                                                 (Int32) algorithmSpec.CipherBlockSize);
 
                 Array.Copy(tmp,
                            0,
@@ -225,8 +221,8 @@ namespace SAFESealing
                            (Int32) outputOffset,
                            tmp.Length);
 
-                inputOffset  += rsaBlocksize;
-                outputOffset += usableBlocksize;
+                inputOffset  += algorithmSpec.CipherBlockSize;
+                outputOffset += algorithmSpec.UsableBlockSize;
 
                 i--;
 

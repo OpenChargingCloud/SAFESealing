@@ -1,8 +1,6 @@
 ﻿
 #region Usings
 
-using System.Security.Cryptography;
-
 using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.TeleTrust;
 using Org.BouncyCastle.Crypto.Engines;
@@ -35,11 +33,13 @@ namespace SAFESealing
                     // regular case
                     //var cipher = Cipher.getInstance(algorithmSpec.getOID().getId(), securityProvider);
 
-                    var aes = Aes.Create();
-                    aes.Mode    = System.Security.Cryptography.CipherMode.ECB;
-                    aes.Padding = PaddingMode.None;
 
-                    return new Cipher(aes);
+                    //var aes = Aes.Create();
+                    //aes.Mode    = System.Security.Cryptography.CipherMode.ECB;
+                    //aes.Padding = PaddingMode.None;
+
+                    //return Cipher.AES_ECB();
+                    return null;
 
             }
 

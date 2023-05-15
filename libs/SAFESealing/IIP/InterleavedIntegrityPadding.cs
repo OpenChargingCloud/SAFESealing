@@ -249,7 +249,7 @@ namespace SAFESealing
 
                     nonceCounter++;
                     bb.Read(int32Buffer);
-                    var givenCounterValue = BitConverter.ToUInt64(int32Buffer);
+                    var givenCounterValue = BitConverter.ToUInt32(int32Buffer);
 
                     if (givenCounterValue != nonceCounter)
                         success = false; // foil timing attacks here by not exiting right away.

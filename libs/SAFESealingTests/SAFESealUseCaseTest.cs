@@ -110,21 +110,21 @@ namespace SAFESealing.Tests
                 recipientECPublicKey  is not null)
             {
 
-                var cleartext1   = Encoding.UTF8.GetBytes("S.A.F.E. e.V.");
-                var testNonce    = BitConverter.GetBytes(23); // DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                var plaintext1  = Encoding.UTF8.GetBytes("S.A.F.E. e.V.");
+                var testNonce   = BitConverter.GetBytes(23); // DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
                 // SENDER performs sealing
-                var sealedData   = new SAFESealSealer().Seal(senderECPrivateKey,
-                                                             recipientECPublicKey,
-                                                             cleartext1,
-                                                             testNonce);
+                var sealedData  = new SAFESealSealer().Seal(senderECPrivateKey,
+                                                            recipientECPublicKey,
+                                                            plaintext1,
+                                                            testNonce);
 
                 // RECIPIENT performs revealing
-                var cleartext2   = new SAFESealRevealer().Reveal(senderECPublicKey,
-                                                                 recipientECPrivateKey,
-                                                                 sealedData);
+                var plaintext2  = new SAFESealRevealer().Reveal(senderECPublicKey,
+                                                                recipientECPrivateKey,
+                                                                sealedData);
 
-                Assert.AreEqual(cleartext1, cleartext2);
+                Assert.AreEqual(plaintext1, plaintext2);
 
             }
 
@@ -147,17 +147,17 @@ namespace SAFESealing.Tests
                 rsaPublicKey  is not null)
             {
 
-                var cleartext1  = Encoding.UTF8.GetBytes("S.A.F.E. e.V.");
+                var plaintext1  = Encoding.UTF8.GetBytes("S.A.F.E. e.V.");
 
                 // SENDER performs sealing
                 var sealedData  = new SAFESealSealer().Seal(rsaPrivateKey,
-                                                            cleartext1);
+                                                            plaintext1);
 
                 // RECIPIENT performs revealing
-                var cleartext2  = new SAFESealRevealer().Reveal(rsaPublicKey,
+                var plaintext2  = new SAFESealRevealer().Reveal(rsaPublicKey,
                                                                 sealedData);
 
-                Assert.AreEqual(cleartext1, cleartext2);
+                Assert.AreEqual(plaintext1, plaintext2);
 
             }
 

@@ -41,17 +41,17 @@ namespace SAFESealing
         #endregion
 
 
-        #region Seal  (Cleartext,   SenderPrivateKey,    RecipientPublicKeys, Nonce)
+        #region Seal  (Plaintext,   SenderPrivateKey,    RecipientPublicKeys, Nonce)
 
         /// <summary>
         /// Seal contents: perform calculation of ephemeral key, padding, encryption, and formatting for transport.
         /// </summary>
-        /// <param name="Cleartext">A cleartext for sealed transport.</param>
+        /// <param name="Plaintext">A plaintext for sealed transport.</param>
         /// <param name="SenderPrivateKey">A sender private key (caller's key).</param>
         /// <param name="RecipientPublicKeys">An enumeration of recipient public key(s).</param>
         /// <param name="Nonce">A cryptographic nonce for increasing the entropy. A random number or a monotonic counter is recommended.</param>
         /// <returns>The wrapped and sealed message.</returns>
-        public Byte[] Seal(Byte[]                              Cleartext,
+        public Byte[] Seal(Byte[]                              Plaintext,
                            ECPrivateKeyParameters              SenderPrivateKey,
                            IEnumerable<ECPublicKeyParameters>  RecipientPublicKeys,
                            Byte[]                              Nonce)
@@ -75,8 +75,8 @@ namespace SAFESealing
                                    );
 
             var payload          = CompressionMode
-                                       ? Cleartext
-                                       : SAFESeal.TryToCompress(Cleartext, itt);
+                                       ? Plaintext
+                                       : SAFESeal.TryToCompress(Plaintext, itt);
 
             // Perform asymmetric crypto, symmetric crypto, and padding
             itt.EncryptedData    = asymmetricLayer.PadEncryptAndPackage(payload,
@@ -101,7 +101,7 @@ namespace SAFESealing
         /// <param name="SealedInput">An array of bytes.</param>
         /// <param name="RecipientPrivateKey">A private key of a recipient.</param>
         /// <param name="SenderPublicKey">A public key of a sender.</param>
-        /// <returns>The cleartext, when everything went OK and the integrity has been validated.</returns>
+        /// <returns>The plaintext, when everything went OK and the integrity has been validated.</returns>
         public Byte[] Reveal(Byte[]                  SealedInput,
                              ECPrivateKeyParameters  RecipientPrivateKey,
                              ECPublicKeyParameters   SenderPublicKey) // is one sender public key enough if several were used in sending?

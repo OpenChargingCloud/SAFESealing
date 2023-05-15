@@ -10,7 +10,6 @@ namespace SAFESealing
     {
         ENCRYPT_MODE,
         DECRYPT_MODE
-
     }
 
     public class Cipher : IAsymmetricBlockCipher
@@ -40,25 +39,11 @@ namespace SAFESealing
 
         }
 
-        public Byte[] DoFinal(Byte[] Cleartext)
+        public Byte[] DoFinal(Byte[] Plaintext)
         {
             // ToDo(ahzf): aesCipher must be set!
-            return aesCipher.TransformFinalBlock(Cleartext, 0, Cleartext.Length);
+            return aesCipher.TransformFinalBlock(Plaintext, 0, Plaintext.Length);
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -103,12 +88,8 @@ namespace SAFESealing
             this.BC = BC;
         }
 
-        public void Init(CipherMode Mode, KeyParameter secretKey)
-        {
 
-            
 
-        }
 
 
         public void Init(CipherMode Mode, KeyParameter secretKey, IvParameterSpec iv)
@@ -126,12 +107,6 @@ namespace SAFESealing
 
         }
 
-        public void Init(CipherMode Mode, ECPublicKeyParameters PublicKey, SecureRandom rng)
-        {
-
-
-
-        }
 
         public void InitRSAPublicKey(CipherMode Mode, RSAPublicKey SenderRSAKey, SecureRandom rng)
         {

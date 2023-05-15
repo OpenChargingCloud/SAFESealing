@@ -58,21 +58,21 @@ namespace SAFESealing
         //ToDo(ahzf): RSA IIP does not yet use the correct RSA key data structure!
 
 
-        #region PadEncryptAndPackage(Cleartext,  OurRSAPrivateKey)
+        #region PadEncryptAndPackage(Plaintext,  OurRSAPrivateKey)
 
         /// <summary>
         /// Pad encrypt and package.
         /// </summary>
-        /// <param name="Cleartext">A cleartext.</param>
+        /// <param name="Plaintext">A plaintext.</param>
         /// <param name="OurRSAPrivateKey">A RSA private key.</param>
-        public Byte[] PadEncryptAndPackage(Byte[]         Cleartext,
+        public Byte[] PadEncryptAndPackage(Byte[]         Plaintext,
                                            RSAPrivateKey  OurRSAPrivateKey)
         {
 
             var rsaBlocksize     = algorithmSpec.CipherBlockSize;
             var usableBlocksize  = algorithmSpec.UsableBlockSize;
 
-            var padded = integrityPaddingInstance.PerformPaddingWithAllocation(Cleartext);
+            var padded = integrityPaddingInstance.PerformPaddingWithAllocation(Plaintext);
             //assert (padded.length % usable_blocksize == 0); // if not, our padding has a bug
 
             // encrypt

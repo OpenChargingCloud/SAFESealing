@@ -46,10 +46,11 @@ namespace SAFESealing
 
             this.algorithmSpec        = AlgorithmSpec;
             this.keyAgreement         = new ECDHBasicAgreement();
-            this.symmetricEncryption  = new SymmetricEncryptionWithIntegrityPadding(
-                                            CryptoFactory.GetCipherFromCipherSpec(this.algorithmSpec)
-                                                ?? throw new ArgumentNullException(nameof(AlgorithmSpec), "Invalid (symmetric) encryption algorithm!")
-                                        );
+            this.symmetricEncryption  = //new SymmetricEncryptionWithIntegrityPadding(
+                                        //    CryptoFactory.GetCipherFromCipherSpec(this.algorithmSpec)
+                                        //        ?? throw new ArgumentNullException(nameof(AlgorithmSpec), "Invalid (symmetric) encryption algorithm!")
+                                        //);
+                                        SymmetricEncryptionWithIntegrityPadding.AES_ECB_NoPKCS7;
 
         }
 
@@ -78,8 +79,8 @@ namespace SAFESealing
             // It is *not* related to the input data in any way!
             var kdf     = SHA256.Create();
             var secret  = keyAgreement.CalculateAgreement(OtherSideECPublicKey).ToByteArray();
-            kdf.TransformBlock     (Nonce, 0, Nonce.Length, null, 0);
-            kdf.TransformFinalBlock(secret,   0, secret.  Length);
+            kdf.TransformBlock     (Nonce,  0, Nonce. Length, null, 0);
+            kdf.TransformFinalBlock(secret, 0, secret.Length);
 
             return new KeyParameter(kdf.Hash);
 
@@ -127,44 +128,44 @@ namespace SAFESealing
         #endregion
 
 
-        #region PadEncryptAndPackage(Cleartext, OtherSideECPublicKey,  OurECPrivateKey, Nonce)
+        #region PadEncryptAndPackage(Plaintext, OtherSideECPublicKey,  OurECPrivateKey, Nonce)
 
         /// <summary>
         /// Pad encrypt and package.
         /// </summary>
-        /// <param name="Cleartext">A cleartext.</param>
+        /// <param name="Plaintext">A plaintext.</param>
         /// <param name="OtherSideECPublicKey">An elliptic curve public key.</param>
         /// <param name="OurECPrivateKey">An elliptic curve private key.</param>
         /// <param name="Nonce">A cryptographic nonce for increasing the entropy.</param>
-        public Byte[] PadEncryptAndPackage(Byte[]                  Cleartext,
+        public Byte[] PadEncryptAndPackage(Byte[]                  Plaintext,
                                            ECPublicKeyParameters   OtherSideECPublicKey,
                                            ECPrivateKeyParameters  OurECPrivateKey,
                                            Byte[]                  Nonce)
 
 
-            => symmetricEncryption.PadAndEncrypt(Cleartext,
+            => symmetricEncryption.PadAndEncrypt(Plaintext,
                                                  CreateEphemeralAESKey(OtherSideECPublicKey,
                                                                        OurECPrivateKey,
                                                                        Nonce));
 
         #endregion
 
-        #region PadEncryptAndPackage(Cleartext, OtherSideECPublicKeys, OurECPrivateKey, Nonce)
+        #region PadEncryptAndPackage(Plaintext, OtherSideECPublicKeys, OurECPrivateKey, Nonce)
 
         /// <summary>
         /// Pad encrypt and package for multiple recipients.
         /// </summary>
-        /// <param name="Cleartext">an array of {@link byte} objects</param>
+        /// <param name="Plaintext">an array of {@link byte} objects</param>
         /// <param name="OtherSideECPublicKeys">An enumeration of elliptic curve public keys.</param>
         /// <param name="OurECPrivateKey">An elliptic curve private key.</param>
         /// <param name="Nonce">A cryptographic nonce for increasing the entropy.</param>
-        public Byte[] PadEncryptAndPackage(Byte[]                              Cleartext,
+        public Byte[] PadEncryptAndPackage(Byte[]                              Plaintext,
                                            IEnumerable<ECPublicKeyParameters>  OtherSideECPublicKeys,
                                            ECPrivateKeyParameters              OurECPrivateKey,
                                            Byte[]                              Nonce)
 
 
-            => symmetricEncryption.PadAndEncrypt(Cleartext,
+            => symmetricEncryption.PadAndEncrypt(Plaintext,
                                                  CreateEphemeralAESKey(OtherSideECPublicKeys,
                                                                        OurECPrivateKey,
                                                                        Nonce));

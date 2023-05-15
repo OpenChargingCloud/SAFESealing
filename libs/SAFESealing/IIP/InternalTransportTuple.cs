@@ -14,7 +14,7 @@ namespace SAFESealing
 
         public CryptoSettings  CryptoSettings            { get; }
         public Byte[]          CryptoIV                  { get; }
-        public Byte[]?         EncryptedData             { get; set; }
+        public Byte[]?         EncryptedData             { get; set; }  //ToDo(ahzf): Solve knotting and make this readonly!
         public Byte[]          KeyDiversificationData    { get; }
 
         #endregion

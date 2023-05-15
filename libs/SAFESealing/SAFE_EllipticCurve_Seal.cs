@@ -57,7 +57,7 @@ namespace SAFESealing
                            Byte[]                              Nonce)
         {
 
-            var asymmetricLayer  = new ECDHEWithIntegrityPadding(AlgorithmSpecCollection.AES256ECB);
+            var asymmetricLayer  = ECDHEWithIntegrityPadding.AES256ECB;
 
             var itt              = new InternalTransportTuple(
                                        new CryptoSettings(
@@ -74,17 +74,14 @@ namespace SAFESealing
                                        Nonce
                                    );
 
-            var payload          = CompressionMode
-                                       ? Plaintext
-                                       : SAFESeal.TryToCompress(Plaintext, itt);
-
-            // Perform asymmetric crypto, symmetric crypto, and padding
-            itt.EncryptedData    = asymmetricLayer.PadEncryptAndPackage(payload,
+            itt.EncryptedData    = asymmetricLayer.PadEncryptAndPackage(CompressionMode
+                                                                            ? Plaintext
+                                                                            : SAFESeal.TryToCompress(Plaintext,
+                                                                                                     itt),
                                                                         RecipientPublicKeys,
                                                                         SenderPrivateKey,
                                                                         itt.KeyDiversificationData);
 
-            // Format the tuple for transport
             return TransportFormatConverter.WrapForTransport(itt);
 
         }
@@ -107,19 +104,19 @@ namespace SAFESealing
                              ECPublicKeyParameters   SenderPublicKey) // is one sender public key enough if several were used in sending?
         {
 
-            var tuple           = TransportFormatConverter.UnwrapTransportFormat(SealedInput)
-                                      ?? throw new Exception("Invalid transport tuple!");
+            var tuple            = TransportFormatConverter.UnwrapTransportFormat(SealedInput)
+                                       ?? throw new Exception("Invalid transport tuple!");
 
             #region Compression settings
 
-            var compressionOID  = (tuple.CryptoSettings.Compression?.OID)
-                                      ?? throw new Exception("Invalid compression information!");
+            var compressionOID   = (tuple.CryptoSettings.Compression?.OID)
+                                       ?? throw new Exception("Invalid compression information!");
 
             if      (compressionOID.Equals(AlgorithmSpecCollection.COMPRESSION_GZIP.OID))
-                CompressionMode = true;
+                CompressionMode  = true;
 
             else if (compressionOID.Equals(AlgorithmSpecCollection.COMPRESSION_NONE.OID))
-                CompressionMode = false;
+                CompressionMode  = false;
 
             else
                 throw new Exception("Invalid or unknown compression!");
@@ -127,13 +124,13 @@ namespace SAFESealing
             #endregion
 
 
-            var payload  = new ECDHEWithIntegrityPadding(AlgorithmSpecCollection.AES256ECB).
+            var payload          = ECDHEWithIntegrityPadding.AES256ECB.
 
-                               DecryptAndVerify(tuple.EncryptedData,
-                                                SenderPublicKey,
-                                                RecipientPrivateKey,
-                                                tuple.KeyDiversificationData,
-                                                tuple.CryptoIV);
+                                       DecryptAndVerify(tuple.EncryptedData,
+                                                        SenderPublicKey,
+                                                        RecipientPrivateKey,
+                                                        tuple.KeyDiversificationData,
+                                                        tuple.CryptoIV);
 
             return CompressionMode
                        ? SAFESeal.InflateZLIBcompressedData(payload)

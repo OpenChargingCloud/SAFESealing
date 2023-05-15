@@ -85,12 +85,12 @@ namespace SAFESealing
         /// <summary>
         /// For block ciphers, get block size in bytes. 0 for not applicable, -1 for stream ciphers.
         /// </summary>
-        public Int32                CipherBlockSize       { get; set; }
+        public UInt32               CipherBlockSize       { get; set; }
 
         /// <summary>
         /// For block ciphers, get number of bytes in block usable for data. -1 for stream ciphers.
         /// </summary>
-        public Int32                UsableBlockSize       { get; set; }
+        public UInt32               UsableBlockSize       { get; set; }
 
         #endregion
 
@@ -129,8 +129,8 @@ namespace SAFESealing
                              CryptoTypes          CryptoType,
                              Boolean              AsymmetricFlag,
                              UInt32               KeySize,
-                             Int32                CipherBlockSize,
-                             Int32                Tara)
+                             UInt32               CipherBlockSize,
+                             UInt32               Tara)
         {
 
             this.OID                 = OID;

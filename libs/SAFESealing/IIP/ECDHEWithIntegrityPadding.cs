@@ -17,6 +17,9 @@ namespace SAFESealing
     public class ECDHEWithIntegrityPadding
     {
 
+        // ALL PRIVATE KEYS MUST BE KEPT SECRET!
+        // This procedure is really unusable in real life!
+
         #region Data
 
         private readonly AlgorithmSpec                            algorithmSpec;
@@ -41,18 +44,42 @@ namespace SAFESealing
         /// Create a new Interleaved Integrity Padding using AES and Elliptic Curve Diffie-Hellman Ephemeral (ECDHE) for shared keys.
         /// </summary>
         /// <param name="AlgorithmSpec">The (symmetric) encryption algorithm to be used</param>
-        public ECDHEWithIntegrityPadding(AlgorithmSpec  AlgorithmSpec)
+        private ECDHEWithIntegrityPadding(AlgorithmSpec                            AlgorithmSpec,
+                                          SymmetricEncryptionWithIntegrityPadding  SymmetricEncryption)
         {
 
             this.algorithmSpec        = AlgorithmSpec;
+            this.symmetricEncryption  = SymmetricEncryption;
             this.keyAgreement         = new ECDHBasicAgreement();
-            this.symmetricEncryption  = //new SymmetricEncryptionWithIntegrityPadding(
-                                        //    CryptoFactory.GetCipherFromCipherSpec(this.algorithmSpec)
-                                        //        ?? throw new ArgumentNullException(nameof(AlgorithmSpec), "Invalid (symmetric) encryption algorithm!")
-                                        //);
-                                        SymmetricEncryptionWithIntegrityPadding.AES_ECB_NoPKCS7;
 
         }
+
+        #endregion
+
+
+        #region (static) AES256ECB
+
+        /// <summary>
+        /// Create AES-256 cipher with ECB mode and no padding
+        /// (no padding might be dangerous!)
+        /// /// </summary>
+        public static ECDHEWithIntegrityPadding AES256ECB
+
+            => new (AlgorithmSpecCollection.AES256ECB,
+                    SymmetricEncryptionWithIntegrityPadding.AES_ECB_NoPKCS7);
+
+        #endregion
+
+        #region (static) AES256CBC
+
+        /// <summary>
+        /// Create AES-256 cipher with CBC mode and no padding
+        /// (no padding might be dangerous!)
+        /// </summary>
+        public static ECDHEWithIntegrityPadding AES256CBC
+
+            => new (AlgorithmSpecCollection.AES256CBC,
+                    SymmetricEncryptionWithIntegrityPadding.AES_CBC_NoPKCS7);
 
         #endregion
 

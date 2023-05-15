@@ -7,7 +7,6 @@ using NUnit.Framework;
 
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 
@@ -16,6 +15,9 @@ using Org.BouncyCastle.Crypto.Parameters;
 namespace SAFESealing.Tests
 {
 
+    /// <summary>
+    /// Tests for SAFE EC Seals.
+    /// </summary>
     public class SAFE_EC_Seal_Tests
     {
 

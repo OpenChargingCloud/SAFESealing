@@ -16,12 +16,12 @@ namespace SAFESealing
     public static class TransportFormatConverter
     {
 
-        #region (static) WrapForTransport(TransportTuple)
+        #region (static) WrapForTransport     (TransportTuple)
 
         /// <summary>
         /// Wrap for transport
         /// </summary>
-        /// <param name="TransportTuple">a {@link com.metabit.custom.safe.safeseal.impl.InternalTransportTuple} object</param>
+        /// <param name="TransportTuple">An internal transport tuple.</param>
         public static Byte[] WrapForTransport(InternalTransportTuple TransportTuple)
         {
 
@@ -113,149 +113,70 @@ namespace SAFESealing
         public static InternalTransportTuple? UnwrapTransportFormat(Byte[] TransportWrapped)
         {
 
-            Asn1TaggedObject  keyAgreementPart;
-            Asn1TaggedObject  encryptionPart;
-            Asn1TaggedObject  authPart;
-            Asn1OctetString   encryptedPayload;
-
-            DerObjectIdentifier? keyDiversificationOID;
-            DerObjectIdentifier? ecAlgorithmOID;
-
             try
             {
 
-                var seq                     = Asn1Sequence.GetInstance(TransportWrapped);
+                #region Parse IIP header
 
-                // first, check we've got the right thing at all.
-                var protocolIdentification  = DerObjectIdentifier.GetInstance(seq[0]);   // 1.3.6.1.4.1.60279.1.1 => S.A.F.E. e.V. IANA Private Enterprise Number
-                var protocolVersion         = DerInteger.         GetInstance(seq[1]);   // 1                     => SAFE Sealing version
+                var iipHeaderSequence       = Asn1Sequence.       GetInstance(TransportWrapped);
 
-                // is it our procedure, and do we handle this version?
+                var protocolIdentification  = DerObjectIdentifier.GetInstance(iipHeaderSequence[0]);   // 1.3.6.1.4.1.60279.1.1 => S.A.F.E. e.V. IANA Private Enterprise Number
+                var protocolVersion         = DerInteger.         GetInstance(iipHeaderSequence[1]);   // 1                     => SAFE Sealing version
+
                 if (!SharedConstants.OID_SAFE_SEAL.Equals(protocolIdentification))
                     throw new Exception($"Unkown protocol identification '{protocolIdentification.Id}'!");
 
-                switch (protocolVersion.IntPositiveValueExact)
+                #endregion
+
+                #region Parse protocol version 1
+
+                if (protocolVersion.IntPositiveValueExact == 1)
                 {
 
-                    case 1: // SAFE_SEAL_VERSION: // OK, let's continue.
-                        // read according to expected structure.
-                        encryptionPart      = Asn1TaggedObject.GetInstance(seq[2]); // BERTags.APPLICATION, 0);
-                        keyAgreementPart    = Asn1TaggedObject.GetInstance(seq[3]); // BERTags.APPLICATION, 1);
-                        authPart            = Asn1TaggedObject.GetInstance(seq[4]); // BERTags.APPLICATION, 2);
-                        encryptedPayload    = DerOctetString.  GetInstance(seq[5]);
-                        break;
+                    var             encryptionPart                = Asn1TaggedObject.GetInstance(iipHeaderSequence[2]); // BERTags.APPLICATION, 0);
+                    var             keyAgreementPart              = Asn1TaggedObject.GetInstance(iipHeaderSequence[3]); // BERTags.APPLICATION, 1);
+                    var             authPart                      = Asn1TaggedObject.GetInstance(iipHeaderSequence[4]); // BERTags.APPLICATION, 2);
+                    var             encryptedPayload              = DerOctetString.  GetInstance(iipHeaderSequence[5]);
 
-                    default:
-                        throw new Exception($"Unkown protocol version '{protocolVersion.IntPositiveValueExact}'!");
+                    // if compression is not present, use default COMPRESSION_NONE
+                    var             encryptedData                 = encryptedPayload.GetOctets();
 
-                }
+                    var             cryptoIV                      = Array.Empty<Byte>();
+                    var             keyDiversificationData        = Array.Empty<Byte>();
 
-                // read back
-                // if compression is not present, use default COMPRESSION_NONE
-                var             encryptedData                 = encryptedPayload.GetOctets();
-
-                var             cryptoIV                      = Array.Empty<Byte>();
-                var             keyDiversificationData        = Array.Empty<Byte>();
-                //var             cryptoSettings                = new CryptoSettingsStruct();
-
-                AlgorithmSpec?  paddingAlgorithm              = null;
-                AlgorithmSpec?  encryptionAlgorithm           = null;
-                AlgorithmSpec?  compressionAlgorithm          = null;
-                AlgorithmSpec?  keyAgreementAlgorithm         = null;
-                AlgorithmSpec?  keyDiversificationAlgorithm   = null;
-                AlgorithmSpec?  keyAgreementCipherToUse       = null;
-                UInt32?         encryptionKeySize             = null;
+                    AlgorithmSpec?  paddingAlgorithm              = null;
+                    AlgorithmSpec?  encryptionAlgorithm           = null;
+                    AlgorithmSpec?  compressionAlgorithm          = null;
+                    AlgorithmSpec?  keyAgreementAlgorithm         = null;
+                    AlgorithmSpec?  keyDiversificationAlgorithm   = null;
+                    AlgorithmSpec?  keyAgreementCipherToUse       = null;
+                    UInt32?         encryptionKeySize             = null;
 
 
-                //# parse the encryption part
-                //var symseq      = (DLSequence) encryptionPart.getBaseUniversal(true, BERTags.SEQUENCE);
-                var symseq = (Asn1Sequence) encryptionPart.GetObject(); // (true, BerTags.Sequence);
+                    #region Parse the encryption part
 
-                foreach (var entry in symseq)
-                {
+                    //var symseq      = (DLSequence) encryptionPart.getBaseUniversal(true, BERTags.SEQUENCE);
+                    var symseq = (Asn1Sequence) encryptionPart.GetObject(); // (true, BerTags.Sequence);
 
-                    //ahzf: Refactor this to switch on types!!!
-                    switch (entry.GetType().Name)
+                    foreach (var entry in symseq)
                     {
 
-                        case "DerOctetString":
-                            cryptoIV = DerOctetString.GetInstance(entry).GetOctets();
-                            break;
-
-                        case "DerObjectIdentifier":
-                            paddingAlgorithm = CryptoSettings.GetPaddingOID(DerObjectIdentifier.GetInstance(entry));
-                            break;
-
-                        case "DerTaggedObject":
-                        case "DLApplicationSpecific":
-                            var taggedObject = Asn1TaggedObject.GetInstance(entry);
-                            //if (taggedObject.GetTagClass() != BERTags.CONTEXT_SPECIFIC)
-                            //{
-                            //    throw new Exception("tag class mismatch " + taggedObject.getTagClass()); //@IMPROVE
-                            //    // continue; before, we just skipped.
-                            //}
-
-                            switch (taggedObject.TagNo)
-                            {
-
-                                case 0: // CONTEXT[0] OID is the encryption algorithm OID
-                                    encryptionAlgorithm  = CryptoSettings.GetEncryptionOID(DerObjectIdentifier.GetInstance(taggedObject.GetObject()));// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
-                                    break;
-
-                                case 1: // CONTEXT[1] OID is the compression algorithm OID
-                                    compressionAlgorithm = CryptoSettings.GetCompressionOID(DerObjectIdentifier.GetInstance(taggedObject.GetObject()));// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
-                                    break;
-
-                                case 2: // CONTEXT[2] INTEGER is the optional keysize in bit
-                                    encryptionKeySize = (UInt32) ((DerInteger) taggedObject.GetObject()).Value.IntValue;
-                                        //taggedObject.getBaseUniversal(true,BERTags.INTEGER)).intPositiveValueExact();
-                                    break;
-
-                                case 3: // CONTEXT[3] INTEGER is the optional nonce size in bit
-                                    var nonceSizeInBit = (UInt32) ((DerInteger) taggedObject.GetObject()).Value.IntValue;
-                                        //DerInteger.GetInstance(taggedObject.getBaseUniversal(true,BERTags.INTEGER)).intPositiveValueExact();
-                                    if (nonceSizeInBit != InterleavedIntegrityPadding.NONCE_SIZE * 8)
-                                        throw new Exception("this version uses fixed nonce size.");
-                                    break;
-
-                                default:
-                                    throw new Exception("tag " + taggedObject.TagNo + " not handled"); //@IMPROVE
-                                }
-                            break;
-
-                        default:
-                            throw new Exception("ASN.1 class " + entry.GetType().Name + " not handled"); //@IMPROVE
-
-                    }
-
-                }
-                // type: x = type.getInstance(sequence.getObjectAt())
-                // Asn1Util.tryGetBaseUniversal(keyAgreementPart, BERTags.APPLICATION, 0, true, BERTags.SEQUENCE);
-
-                //# parse the key agreement part
-                var kaseq = Asn1Sequence.GetInstance(keyAgreementPart.GetObject());
-                            //(DLSequence) keyAgreementPart.getBaseUniversal(true, BERTags.SEQUENCE);
-                if (kaseq.Count > 0) // is a key agreement in use at all?
-                {
-                    foreach (var entry in kaseq)
-                    {
+                        //ahzf: Refactor this to switch on types!!!
                         switch (entry.GetType().Name)
                         {
 
-                            case "DerObjectIdentifier":
-                                keyAgreementAlgorithm = CryptoSettings.GetKeyAgreementProtocolByOID(DerObjectIdentifier.GetInstance(entry));
+                            case "DerOctetString":
+                                cryptoIV = DerOctetString.GetInstance(entry).GetOctets();
                                 break;
 
-                            case "DerOctetString":
-                                keyDiversificationData = DerOctetString.GetInstance(entry).GetOctets();
+                            case "DerObjectIdentifier":
+                                paddingAlgorithm = CryptoSettings.GetPaddingOID(DerObjectIdentifier.GetInstance(entry));
                                 break;
 
                             case "DerTaggedObject":
                             case "DLApplicationSpecific":
-
                                 var taggedObject = Asn1TaggedObject.GetInstance(entry);
-
-                                //if (taggedObject.GetType().Name != BERTags.CONTEXT_SPECIFIC)
+                                //if (taggedObject.GetTagClass() != BERTags.CONTEXT_SPECIFIC)
                                 //{
                                 //    throw new Exception("tag class mismatch " + taggedObject.getTagClass()); //@IMPROVE
                                 //    // continue; before, we just skipped.
@@ -264,67 +185,149 @@ namespace SAFESealing
                                 switch (taggedObject.TagNo)
                                 {
 
-                                    case 0: // CONTEXT[0] key diversification algorithm OID
-                                        keyDiversificationOID       = DerObjectIdentifier. GetInstance(taggedObject.GetObject());// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER));
-                                        keyDiversificationAlgorithm = CryptoSettings.GetKeyDiversificationOID(keyDiversificationOID);
+                                    case 0: // CONTEXT[0] OID is the encryption algorithm OID
+                                        encryptionAlgorithm  = CryptoSettings.GetEncryptionOID(DerObjectIdentifier.GetInstance(taggedObject.GetObject()));// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
                                         break;
 
-                                    case 1: // CONTEXT[1] EC Algorithm OID
-                                        ecAlgorithmOID              = DerObjectIdentifier. GetInstance(taggedObject.GetObject());// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER));
-                                        keyAgreementCipherToUse     = CryptoSettings.GetKeyAgreementCipherOID(ecAlgorithmOID); // will fail if algorithm isn't known in AlgorithmSpecCollection.
+                                    case 1: // CONTEXT[1] OID is the compression algorithm OID
+                                        compressionAlgorithm = CryptoSettings.GetCompressionOID(DerObjectIdentifier.GetInstance(taggedObject.GetObject()));// .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER)));
                                         break;
 
-                                    case 2:
-                                        throw new Exception("version mismatch; EC parameters not supported in this version.");
+                                    case 2: // CONTEXT[2] INTEGER is the optional keysize in bit
+                                        encryptionKeySize = (UInt32) ((DerInteger) taggedObject.GetObject()).Value.IntValue;
+                                            //taggedObject.getBaseUniversal(true,BERTags.INTEGER)).intPositiveValueExact();
+                                        break;
 
-                                    case 3:
-                                        throw new Exception("version mismatch; public key reference not supported in this version");
+                                    case 3: // CONTEXT[3] INTEGER is the optional nonce size in bit
+                                        var nonceSizeInBit = (UInt32) ((DerInteger) taggedObject.GetObject()).Value.IntValue;
+                                            //DerInteger.GetInstance(taggedObject.getBaseUniversal(true,BERTags.INTEGER)).intPositiveValueExact();
+                                        if (nonceSizeInBit != InterleavedIntegrityPadding.NONCE_SIZE * 8)
+                                            throw new Exception("this version uses fixed nonce size.");
+                                        break;
 
                                     default:
-                                        throw new Exception("format error");
-
-                                }
+                                        throw new Exception("tag " + taggedObject.TagNo + " not handled"); //@IMPROVE
+                                    }
                                 break;
 
                             default:
                                 throw new Exception("ASN.1 class " + entry.GetType().Name + " not handled"); //@IMPROVE
 
                         }
+
                     }
-                }
+                    // type: x = type.getInstance(sequence.getObjectAt())
+                    // Asn1Util.tryGetBaseUniversal(keyAgreementPart, BERTags.APPLICATION, 0, true, BERTags.SEQUENCE);
 
-                //# authentication part parsing
-                if (authPart is not null)
-                {
+                    #endregion
 
-                    //var apseq = (DLSequence) authPart.getBaseUniversal(true, BERTags.SEQUENCE);
-                    var apseq = Asn1Sequence.GetInstance(authPart.GetObject());
+                    #region Parse the key agreement part
 
-                    if (apseq.Count > 0)
+                    var kaseq = Asn1Sequence.GetInstance(keyAgreementPart.GetObject());
+                                //(DLSequence) keyAgreementPart.getBaseUniversal(true, BERTags.SEQUENCE);
+                    if (kaseq.Count > 0) // is a key agreement in use at all?
                     {
-                    //@IMPROVEMENT authPart parsing for later versions.
+                        foreach (var entry in kaseq)
+                        {
+                            switch (entry.GetType().Name)
+                            {
+
+                                case "DerObjectIdentifier":
+                                    keyAgreementAlgorithm = CryptoSettings.GetKeyAgreementProtocolByOID(DerObjectIdentifier.GetInstance(entry));
+                                    break;
+
+                                case "DerOctetString":
+                                    keyDiversificationData = DerOctetString.GetInstance(entry).GetOctets();
+                                    break;
+
+                                case "DerTaggedObject":
+                                case "DLApplicationSpecific":
+
+                                    var taggedObject = Asn1TaggedObject.GetInstance(entry);
+
+                                    //if (taggedObject.GetType().Name != BERTags.CONTEXT_SPECIFIC)
+                                    //{
+                                    //    throw new Exception("tag class mismatch " + taggedObject.getTagClass()); //@IMPROVE
+                                    //    // continue; before, we just skipped.
+                                    //}
+
+                                    switch (taggedObject.TagNo)
+                                    {
+
+                                        case 0: // CONTEXT[0] key diversification algorithm OID
+                                            var keyDiversificationOID    = DerObjectIdentifier. GetInstance(taggedObject.GetObject());  // .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER));
+                                            keyDiversificationAlgorithm  = CryptoSettings.GetKeyDiversificationOID(keyDiversificationOID);
+                                            break;
+
+                                        case 1: // CONTEXT[1] EC Algorithm OID
+                                            var ecAlgorithmOID           = DerObjectIdentifier. GetInstance(taggedObject.GetObject());  // .getBaseUniversal(true, BERTags.OBJECT_IDENTIFIER));
+                                            keyAgreementCipherToUse      = CryptoSettings.GetKeyAgreementCipherOID(ecAlgorithmOID);     // will fail if algorithm isn't known in AlgorithmSpecCollection.
+                                            break;
+
+                                        case 2:
+                                            throw new Exception("version mismatch; EC parameters not supported in this version.");
+
+                                        case 3:
+                                            throw new Exception("version mismatch; public key reference not supported in this version");
+
+                                        default:
+                                            throw new Exception("format error");
+
+                                    }
+                                    break;
+
+                                default:
+                                    throw new Exception("ASN.1 class " + entry.GetType().Name + " not handled"); //@IMPROVE
+
+                            }
+                        }
                     }
+
+                    #endregion
+
+                    #region Parse the optional authentication part
+
+                    if (authPart is not null)
+                    {
+
+                        //var apseq = (DLSequence) authPart.getBaseUniversal(true, BERTags.SEQUENCE);
+                        var apseq = Asn1Sequence.GetInstance(authPart.GetObject());
+
+                        if (apseq.Count > 0)
+                        {
+                        //@IMPROVEMENT authPart parsing for later versions.
+                        }
+
+                    }
+
+                    #endregion
+
+
+                    if (encryptionAlgorithm is null)
+                        throw new Exception("The encryption algorithm must not be null!");
+
+                    if (compressionAlgorithm is null)
+                        throw new Exception("The compression algorithm must not be null!");
+
+                    return new InternalTransportTuple(new CryptoSettings(
+                                                          KeyAgreementProtocolToUse:  keyAgreementAlgorithm,
+                                                          KeyAgreementCipherToUse:    keyAgreementCipherToUse,
+                                                          KeyDiversificationToUse:    keyDiversificationAlgorithm,
+                                                          EncryptionToUse:            encryptionAlgorithm,
+                                                          CompressionUsed:            compressionAlgorithm,
+                                                          PaddingToUse:               paddingAlgorithm,
+                                                          EncryptionKeySize:          encryptionKeySize
+                                                      ),
+                                                      cryptoIV,
+                                                      encryptedData,
+                                                      keyDiversificationData);
 
                 }
 
-                if (encryptionAlgorithm is null)
-                    throw new Exception("The encryption algorithm must not be null!");
+                #endregion
 
-                if (compressionAlgorithm is null)
-                    throw new Exception("The compression algorithm must not be null!");
-
-                return new InternalTransportTuple(new CryptoSettings(
-                                                      KeyAgreementProtocolToUse:  keyAgreementAlgorithm,
-                                                      KeyAgreementCipherToUse:    keyAgreementCipherToUse,
-                                                      KeyDiversificationToUse:    keyDiversificationAlgorithm,
-                                                      EncryptionToUse:            encryptionAlgorithm,
-                                                      CompressionUsed:            compressionAlgorithm,
-                                                      PaddingToUse:               paddingAlgorithm,
-                                                      EncryptionKeySize:          encryptionKeySize
-                                                  ),
-                                                  cryptoIV,
-                                                  encryptedData,
-                                                  keyDiversificationData);
+                else
+                    throw new Exception($"Unkown protocol version '{protocolVersion.IntPositiveValueExact}'!");
 
             }
             catch (Exception e)

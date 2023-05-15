@@ -17,6 +17,10 @@ namespace SAFESealing
     public class RSAWithIntegrityPadding
     {
 
+        // RSA/ECB/NoPadding == default
+        // RSA/CBC + IV
+        // Everything else should be avoided.
+
         #region Data
 
         private readonly AlgorithmSpec                algorithmSpec;
@@ -80,17 +84,17 @@ namespace SAFESealing
             //assert (rsaPrivKey.getModulus().bitLength() == algorithmSpec.getKeySizeInBit()); // must match expected size
 
             // rsa will support single blocks only, so we have to split ourselves.
-            var inputLength      = padded.Length;
+            var inputLength      = (UInt32) padded.Length;
             var outputLength     = inputLength  / usableBlocksize * rsaBlocksize; // scaling from one to the other
             var encrypted        = new Byte[outputLength];
             var numBlocksInput   = outputLength / rsaBlocksize;
 
-            for (var i = 0; i < numBlocksInput; i++)
+            for (var i = 0U; i < numBlocksInput; i++)
                 cipher.doFinal(padded,
-                               i * usableBlocksize,
-                               usableBlocksize,
+                               (Int32) (i * usableBlocksize),
+                               (Int32) usableBlocksize,
                                encrypted,
-                               i * rsaBlocksize); // different blocksizes. Details matter.
+                               (Int32) (i * rsaBlocksize)); // different blocksizes. Details matter.
 
             // cleanup as far as possible
             //Arrays.fill(padded, (byte) 0x00);
@@ -128,13 +132,17 @@ namespace SAFESealing
 
             // we're to process the blocks ourselves.
             var i                 = numBlocks;
-            var inputOffset       = 0;
-            var outputOffset      = 0;
+            var inputOffset       = 0U;
+            var outputOffset      = 0U;
 
             while (i > 0)
             {
 
-                cipher.doFinal(Ciphertext, inputOffset, rsaBlocksize, decrypted, outputOffset);
+                cipher.doFinal(Ciphertext,
+                               (Int32) inputOffset,
+                               (Int32) rsaBlocksize,
+                               decrypted,
+                               (Int32) outputOffset);
 
                 inputOffset  += rsaBlocksize;
                 outputOffset += usableBlocksize;

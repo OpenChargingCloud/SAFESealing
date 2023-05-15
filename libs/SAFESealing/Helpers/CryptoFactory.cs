@@ -26,7 +26,7 @@ namespace SAFESealing
                 case AlgorithmSpec.CryptoTypes.DIGEST:
                     // we need special handling for RSA/ECB/NoPadding
                     if (AlgorithmSpec.OID.Id.Equals(SharedConstants.OID_RSA_ECB.Id))
-                        return GetRSAECB(AlgorithmSpec);
+                        return new Cipher(new RsaEngine());
 
                     // 1.3.132.1.12   for KEY_AGREEMENT
 

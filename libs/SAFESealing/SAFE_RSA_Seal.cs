@@ -55,20 +55,11 @@ namespace SAFESealing
                            RSAPrivateKey  SenderRSAPrivateKey)
         {
 
-            // lacking a proper API, we do this the factual way:
-            var description               = SenderRSAPrivateKey.ToString();
-            var keyLengthFromDescription  = new Regex(@".+RSA private CRT key,\s+(\d{4})\sbits$", RegexOptions.Multiline);
-            var match                     = keyLengthFromDescription.Match(description);
-
-            if (match.Success == false)
-                throw new Exception("Could not determine RSA key length!");
-
-            var privateKeyLength = UInt32.Parse(match.Groups[1].Value);
-            var asymmetricLayer = privateKeyLength switch {
+            var asymmetricLayer = SenderRSAPrivateKey.Key.Modulus.BitLength switch {
               //1024 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA1024),  //ahzf: RSA1024 is NOT DEFINED within AlgorithmSpecCollection!!?
                 2048 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA2048),
                 4096 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA4096),
-                _    => throw new Exception("Unsupported RSA key length: " + privateKeyLength),
+                _    => throw new Exception("Unsupported RSA key length: " + SenderRSAPrivateKey.Key.Modulus.BitLength),
             };
 
             // No diversification needed for direct RSA application
@@ -80,7 +71,7 @@ namespace SAFESealing
                                          AlgorithmSpecCollection.RSA2048,
                                          AlgorithmSpecCollection.COMPRESSION_NONE,
                                          null,
-                                         privateKeyLength
+                                         (UInt32) SenderRSAPrivateKey.Key.Modulus.BitLength
                                      ),
                                      asymmetricLayer.SymmetricIV,  //ToDo(ahzf): This is allways null!?
                                      Array.Empty<Byte>(),

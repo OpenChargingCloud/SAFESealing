@@ -270,7 +270,7 @@ namespace SAFESealing
         public Byte[] PadAndEncrypt(Byte[]        Plaintext,
                                     KeyParameter  SecretKey)
 
-            => EncryptOnly(IntegrityPaddingInstance.PerformPaddingWithAllocation(Plaintext),
+            => EncryptOnly(IntegrityPaddingInstance.PerformPadding(Plaintext),
                            SecretKey);
 
         #endregion

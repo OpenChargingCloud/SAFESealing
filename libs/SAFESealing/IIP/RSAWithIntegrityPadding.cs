@@ -107,7 +107,7 @@ namespace SAFESealing
                                            RSAPrivateKey  OurRSAPrivateKey)
         {
 
-            var padded          = integrityPaddingInstance.PerformPaddingWithAllocation(Plaintext);
+            var padded          = integrityPaddingInstance.PerformPadding(Plaintext);
 
             if (padded.Length % algorithmSpec.UsableBlockSize != 0)
                 throw new Exception("The length of the given plaintext doesn't match the key size!");

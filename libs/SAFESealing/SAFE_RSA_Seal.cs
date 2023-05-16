@@ -1,10 +1,4 @@
 ﻿
-#region Usings
-
-using System.ComponentModel.DataAnnotations;
-using System.Text.RegularExpressions;
-
-#endregion
 
 namespace SAFESealing
 {
@@ -22,7 +16,7 @@ namespace SAFESealing
         /// Flag shorthand for NONE or ZLIB.
         /// Later versions may use an enum.
         /// </summary>
-        public Boolean CompressionMode    { get; private set; }
+        public Boolean  CompressionMode    { get; private set; }
 
         #endregion
 
@@ -32,10 +26,10 @@ namespace SAFESealing
         /// Create a new SAFE seal using RSA cryptography.
         /// </summary>
         /// <param name="CompressionMode">Flag shorthand for NONE or ZLIB. Later versions may use an enum.</param>
-        public SAFE_RSA_Seal(Boolean CompressionMode   = false)
+        public SAFE_RSA_Seal(Boolean CompressionMode = false)
         {
 
-            this.CompressionMode  = CompressionMode;
+            this.CompressionMode = CompressionMode;
 
         }
 
@@ -73,7 +67,7 @@ namespace SAFESealing
                                                    null,
                                                    (UInt32) RSAPrivateKey.Key.Modulus.BitLength
                                                ),
-                                               rsaWithIntegrityPadding.SymmetricIV,  //ToDo(ahzf): This is allways null!?
+                                               Array.Empty<Byte>(),
                                                Array.Empty<Byte>(),
                                                Array.Empty<Byte>()
                                            );
@@ -136,7 +130,7 @@ namespace SAFESealing
             var rsaWithIntegrityPadding  = tuple.Item1.CryptoSettings.EncryptionKeySize switch {
                                                2048 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA2048),
                                                4096 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA4096),
-                                               _ => null
+                                               _    => null
                                            };
 
             if (rsaWithIntegrityPadding is null)

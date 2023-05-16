@@ -2,7 +2,6 @@
 #region Usings
 
 using Org.BouncyCastle.Crypto.Parameters;
-using System.Net.WebSockets;
 
 #endregion
 
@@ -51,45 +50,45 @@ namespace SAFESealing
         /// <param name="SenderPrivateKey">A sender private key (caller's key).</param>
         /// <param name="RecipientPublicKeys">An enumeration of recipient public key(s).</param>
         /// <param name="Nonce">A cryptographic nonce for increasing the entropy. A random number or a monotonic counter is recommended.</param>
-        /// <returns>The wrapped and sealed message.</returns>
         public ByteArray Seal(Byte[]                              Plaintext,
                               ECPrivateKeyParameters              SenderPrivateKey,
                               IEnumerable<ECPublicKeyParameters>  RecipientPublicKeys,
                               Byte[]                              Nonce)
         {
 
-            var asymmetricLayer  = ECDHEWithIntegrityPadding.AES256ECB;
+            var ecdheWithIntegrityPadding         = ECDHEWithIntegrityPadding.AES256ECB;
 
-            var itt              = new InternalTransportTuple(
-                                       new CryptoSettings(
-                                           AlgorithmSpecCollection.ECDH,
-                                           AlgorithmSpecCollection.ECSECP256R1,
-                                           AlgorithmSpecCollection.SHA256,
-                                           AlgorithmSpecCollection.AES256CBC,
-                                           AlgorithmSpecCollection.COMPRESSION_NONE,
-                                           null,
-                                           AlgorithmSpecCollection.AES256ECB.KeySizeInBit / 8
-                                       ),
-                                       asymmetricLayer.SymmetricIV,
-                                       Array.Empty<Byte>(),
-                                       Nonce
-                                   );
+            var internalTransportTuple            = new InternalTransportTuple(
+                                                        new CryptoSettings(
+                                                            AlgorithmSpecCollection.ECDH,
+                                                            AlgorithmSpecCollection.ECSECP256R1,
+                                                            AlgorithmSpecCollection.SHA256,
+                                                            AlgorithmSpecCollection.AES256CBC,
+                                                            AlgorithmSpecCollection.COMPRESSION_NONE,
+                                                            null,
+                                                            AlgorithmSpecCollection.AES256ECB.KeySizeInBit / 8
+                                                        ),
+                                                        ecdheWithIntegrityPadding.SymmetricIV,
+                                                        Array.Empty<Byte>(),
+                                                        Nonce
+                                                    );
 
-            var compressed       = CompressionMode
-                                       ? ByteArray.Ok           (Plaintext)
-                                       : SAFESeal. TryToCompress(Plaintext, itt);
-
+            var compressed                        = CompressionMode
+                                                        ? ByteArray.Ok           (Plaintext)
+                                                        : SAFESeal. TryToCompress(Plaintext, internalTransportTuple);
             if (compressed.HasErrors)
                 return compressed;
 
-            var encryptedData    = asymmetricLayer.PadEncryptAndPackage(compressed,
-                                                                        RecipientPublicKeys,
-                                                                        SenderPrivateKey,
-                                                                        itt.KeyDiversificationData);
+            var encryptedData                     = ecdheWithIntegrityPadding.PadEncryptAndPackage(compressed,
+                                                                                                   RecipientPublicKeys,
+                                                                                                   SenderPrivateKey,
+                                                                                                   internalTransportTuple.KeyDiversificationData);
+            if (encryptedData.HasErrors)
+                return encryptedData;
 
-            itt.EncryptedData    = encryptedData;
+            internalTransportTuple.EncryptedData  = encryptedData;
 
-            return TransportFormatConverter.WrapForTransport(itt);
+            return TransportFormatConverter.WrapForTransport(internalTransportTuple);
 
         }
 
@@ -105,10 +104,9 @@ namespace SAFESealing
         /// <param name="SealedInput">An array of bytes.</param>
         /// <param name="RecipientPrivateKey">A private key of a recipient.</param>
         /// <param name="SenderPublicKey">A public key of a sender.</param>
-        /// <returns>The plaintext, when everything went OK and the integrity has been validated.</returns>
         public ByteArray Reveal(Byte[]                  SealedInput,
-                                       ECPrivateKeyParameters  RecipientPrivateKey,
-                                       ECPublicKeyParameters   SenderPublicKey) // is one sender public key enough if several were used in sending?
+                                ECPrivateKeyParameters  RecipientPrivateKey,
+                                ECPublicKeyParameters   SenderPublicKey)
         {
 
             var tuple            = TransportFormatConverter.UnwrapTransportFormat(SealedInput);

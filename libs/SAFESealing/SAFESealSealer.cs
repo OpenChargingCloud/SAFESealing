@@ -1,8 +1,6 @@
 ﻿
 #region Usings
 
-using System.Diagnostics;
-
 using Org.BouncyCastle.Crypto.Parameters;
 
 #endregion
@@ -22,7 +20,7 @@ namespace SAFESealing
         /// Flag shorthand for NONE or ZLIB.
         /// Later versions may use an enum.
         /// </summary>
-        public Boolean        CompressionMode     { get; }
+        public Boolean  CompressionMode    { get; }
 
         #endregion
 
@@ -122,7 +120,9 @@ namespace SAFESealing
                               Byte[]  Plaintext,
                               Int64   Nonce)
         {
+
             return ByteArray.Error("Not Implemented!");
+
         }
 
         #endregion

@@ -8,13 +8,6 @@ using System.IO.Compression;
 namespace SAFESealing
 {
 
-    public enum CryptoVariant
-    {
-        ECDHE_AES,
-        RSA
-    }
-
-
     /// <summary>
     /// Sealing and revealing of OCMF messages according to SAFE e.V. specifications.
     /// </summary>

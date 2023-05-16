@@ -80,9 +80,6 @@ namespace SAFESealing
         /** Constant <code>RSA4096</code> */
         public static readonly AlgorithmSpec RSA4096             = new (SharedConstants.OID_RSA_ECB,                     "RSA/ECB/NoPadding",    AlgorithmSpec.CryptoTypes.CIPHER, true, 4096, 512, 1);
 
-        /** Constant <code>RSA2048_on_SunJCE</code> */
-        public static readonly AlgorithmSpec RSA2048_on_SunJCE   = new (SharedConstants.OID_RSA_ECB,                     "RSA/ECB/NoPadding",    AlgorithmSpec.CryptoTypes.CIPHER, true, 2048, 256, 0); // internal test constructor, not public
-
         #endregion
 
 

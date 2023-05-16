@@ -30,24 +30,13 @@ namespace SAFESealing
 
         // RSA/ECB/NoPadding == default
         // RSA/CBC + IV ???
-        // Everything else should be avoided.
+        // Everything else should be avoided
 
         #region Data
 
         private readonly AlgorithmSpec                algorithmSpec;
         private readonly RsaEngine                    rsaEngine;
         private readonly InterleavedIntegrityPadding  integrityPaddingInstance;
-
-        #endregion
-
-        #region Properties
-
-        /// <summary>
-        /// Return the symmetric IV.
-        /// </summary>
-        public Byte[] SymmetricIV
-
-            => Array.Empty<Byte>();
 
         #endregion
 
@@ -85,9 +74,6 @@ namespace SAFESealing
         }
 
         #endregion
-
-
-        //ToDo(ahzf): RSA IIP does not yet use the correct RSA key data structure!
 
 
         #region PadEncryptAndPackage(Plaintext,  OurRSAPrivateKey)
@@ -158,9 +144,6 @@ namespace SAFESealing
                            tmp.Length);
 
             }
-
-            // cleanup as far as possible
-            //Arrays.fill(padded, (byte) 0x00);
 
             return ByteArray.Ok(encrypted);
 

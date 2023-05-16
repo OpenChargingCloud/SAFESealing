@@ -1,8 +1,6 @@
 ﻿
 #region Usings
 
-using System.Diagnostics;
-
 using Org.BouncyCastle.Crypto.Parameters;
 
 #endregion
@@ -98,9 +96,11 @@ namespace SAFESealing
                                 Byte[]  RawRecipientPrivateKey,
                                 Byte[]  SealedMessage)
         {
+
             // todo perform deterministic conversion from bytearrays to keys.
             // then call the "real" function
             return ByteArray.Error("Not implemented!");
+
         }
 
         #endregion

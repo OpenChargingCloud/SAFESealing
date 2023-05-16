@@ -68,96 +68,106 @@ namespace SAFESealing
         public ByteArray PerformPadding(Byte[] Payload)
         {
 
-            var bufferSizeRequiredLong = CalculateNumberOfBytesOverall((UInt32) Payload.Length,
-                                                                       cipherBlockSize);
-
-            if (bufferSizeRequiredLong > Int32.MaxValue)
-                return ByteArray.Error($"The gieven payload is too large. Its maximum size in byte is {Int32.MaxValue}!");
-
-            using var paddedDataStream = new MemoryStream(new Byte[(Int32) bufferSizeRequiredLong]);
-            //paddedDataStream.order(ByteOrder.BIG_ENDIAN); // Network byte order defined.
-
-
-            #region Write Interleaved Integrity Padding header
-
-            // Write MAGIC ID, shortened if needed.
-            var magicIdLengthRequired = CalculateMagicIdSizeUsed();
-            paddedDataStream.Write(MAGIC_ID_VERSION_1_0, 0, (Int32) magicIdLengthRequired);
-
-            // Add R0 padding.
-            var randomBytes             = new Byte[1];
-            var numHeaderPaddingBytes   = cipherBlockSize - (magicIdLengthRequired + NONCE_SIZE + PAYLOAD_LENGTH_SIZE);
-            while (numHeaderPaddingBytes>0)
-            {
-                rng.NextBytes(randomBytes);
-                paddedDataStream.WriteByte(randomBytes[0]);
-                numHeaderPaddingBytes--;
-            }
-
-            // we can't use padToBlockSizeWithRandom here since we pad R0 in the *middle* of the header block.
-
-            // Write the nonce
-            // Always written at offset cipherBlockSize - (NONCE_SIZE + PAYLOAD_LENGTH_SIZE)
-            var nonce = new Byte[NONCE_SIZE];
-            rng.NextBytes(nonce);
-            var nonceWithCounter        = BitConverter.ToUInt32(nonce, 0);
-            paddedDataStream.Write(nonce);
-
-            // Write the length of the payload to be reconstructed at recipient side.
-            // Always written at offset cipherBlockSize - PAYLOAD_LENGTH_SIZE
-            paddedDataStream.Write(BitConverter.GetBytes(Payload.Length));
-            //assert (bb.position()==cipherBlockSize); // implementation check: header block exactly complete?
-
-            #endregion
-
-            #region Write payload data
-
-            for (var offset = 0U; offset < Payload.Length; offset += payloadBytesPerBlock)
+            try
             {
 
-                // pre-increment (not post)
-                nonceWithCounter++;
+                var bufferSizeRequiredLong = CalculateNumberOfBytesOverall((UInt32) Payload.Length,
+                                                                           cipherBlockSize);
 
-                // java.lang.Math.toIntExact would fail here at wraparound. We have to perform this cast ourselves:
-                // Place 4 byte integer counter CTR first.
-                paddedDataStream.Write(BitConverter.GetBytes((Int32) (nonceWithCounter & 0x0FFFFFFFFL)));
+                if (bufferSizeRequiredLong > Int32.MaxValue)
+                    return ByteArray.Error($"The gieven payload is too large. Its maximum size in byte is {Int32.MaxValue}!");
 
-                // Wenn wir dem ende des blocks näher kommen...
-                var remainder = Payload.Length - offset;
-                paddedDataStream.Write(Payload,
-                                       (Int32) offset,
-                                       (Int32) Math.Min(remainder, payloadBytesPerBlock));
+                using var paddedDataStream = new MemoryStream(new Byte[(Int32) bufferSizeRequiredLong]);
+                //paddedDataStream.order(ByteOrder.BIG_ENDIAN); // Network byte order defined.
 
-            }
 
-            #endregion
+                #region Write Interleaved Integrity Padding header
 
-            #region Write padding data
+                // Write MAGIC ID, shortened if needed.
+                var magicIdLengthRequired = CalculateMagicIdSizeUsed();
+                paddedDataStream.Write(MAGIC_ID_VERSION_1_0, 0, (Int32) magicIdLengthRequired);
 
-            // When the last block needs padding, apply it here...
-            PadToBlockSizeWithRandom(paddedDataStream);
+                // Add R0 padding.
+                var randomBytes             = new Byte[1];
+                var numHeaderPaddingBytes   = cipherBlockSize - (magicIdLengthRequired + NONCE_SIZE + PAYLOAD_LENGTH_SIZE);
+                while (numHeaderPaddingBytes>0)
+                {
+                    rng.NextBytes(randomBytes);
+                    paddedDataStream.WriteByte(randomBytes[0]);
+                    numHeaderPaddingBytes--;
+                }
 
-            // Check if remainder != 0
-            if (Payload.Length % payloadBytesPerBlock == 0) // perfect match means trailing block
-            {
+                // we can't use padToBlockSizeWithRandom here since we pad R0 in the *middle* of the header block.
 
-                // Append trailing block; only necessary if the r1 was empty
-                nonceWithCounter++;
+                // Write the nonce
+                // Always written at offset cipherBlockSize - (NONCE_SIZE + PAYLOAD_LENGTH_SIZE)
+                var nonce = new Byte[NONCE_SIZE];
+                rng.NextBytes(nonce);
+                var nonceWithCounter        = BitConverter.ToUInt32(nonce, 0);
+                paddedDataStream.Write(nonce);
 
-                //@CHECK the java Math.toIntExact() function on signedness. we want an unsigned wrap-around, that's why we use long and Math.toIntExact().
-                // Place 4 byte integer counter CTR.
-                paddedDataStream.Write(BitConverter.GetBytes((Int32) (nonceWithCounter & 0x0FFFFFFFFL)));
+                // Write the length of the payload to be reconstructed at recipient side.
+                // Always written at offset cipherBlockSize - PAYLOAD_LENGTH_SIZE
+                paddedDataStream.Write(BitConverter.GetBytes(Payload.Length));
+                //assert (bb.position()==cipherBlockSize); // implementation check: header block exactly complete?
 
-                // fill up
+                #endregion
+
+                #region Write payload data
+
+                for (var offset = 0U; offset < Payload.Length; offset += payloadBytesPerBlock)
+                {
+
+                    // pre-increment (not post)
+                    nonceWithCounter++;
+
+                    // java.lang.Math.toIntExact would fail here at wraparound. We have to perform this cast ourselves:
+                    // Place 4 byte integer counter CTR first.
+                    paddedDataStream.Write(BitConverter.GetBytes((Int32) (nonceWithCounter & 0x0FFFFFFFFL)));
+
+                    // Wenn wir dem ende des blocks näher kommen...
+                    var remainder = Payload.Length - offset;
+                    paddedDataStream.Write(Payload,
+                                           (Int32) offset,
+                                           (Int32) Math.Min(remainder, payloadBytesPerBlock));
+
+                }
+
+                #endregion
+
+                #region Write padding data
+
+                // When the last block needs padding, apply it here...
                 PadToBlockSizeWithRandom(paddedDataStream);
 
+                // Check if remainder != 0
+                if (Payload.Length % payloadBytesPerBlock == 0) // perfect match means trailing block
+                {
+
+                    // Append trailing block; only necessary if the r1 was empty
+                    nonceWithCounter++;
+
+                    //@CHECK the java Math.toIntExact() function on signedness. we want an unsigned wrap-around, that's why we use long and Math.toIntExact().
+                    // Place 4 byte integer counter CTR.
+                    paddedDataStream.Write(BitConverter.GetBytes((Int32) (nonceWithCounter & 0x0FFFFFFFFL)));
+
+                    // fill up
+                    PadToBlockSizeWithRandom(paddedDataStream);
+
+                }
+
+                #endregion
+
+                // With clean block input, this should equal block length
+                // Return number of bytes used
+                return ByteArray.Ok(paddedDataStream.ToArray());
+
             }
-
-            #endregion
-
-            // With clean block input, this should equal block length
-            // Return number of bytes used
-            return ByteArray.Ok(paddedDataStream.ToArray());
+            catch (Exception e)
+            {
+                // integer overflow from Math.toIntExact if one of those values is corrupted
+                return ByteArray.Exception(e);
+            }
 
         }
 

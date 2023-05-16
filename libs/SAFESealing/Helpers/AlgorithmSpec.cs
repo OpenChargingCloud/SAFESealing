@@ -110,7 +110,6 @@ namespace SAFESealing
             this.OID         = OID;
             this.Name        = Name;
             this.CryptoType  = CryptoType;
-            // leaving everything else on default == 0
 
         }
 

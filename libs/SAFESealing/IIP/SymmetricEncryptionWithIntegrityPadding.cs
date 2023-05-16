@@ -1,13 +1,13 @@
 ﻿
 #region Usings
 
-using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto.Paddings;
+using System.Security.Cryptography;
+
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Modes;
-using System.Security.Cryptography;
+using Org.BouncyCastle.Crypto.Engines;
+using Org.BouncyCastle.Crypto.Paddings;
+using Org.BouncyCastle.Crypto.Parameters;
 
 #endregion
 
@@ -27,9 +27,6 @@ namespace SAFESealing
 
         #region Data
 
-        //private static readonly String[]                     CHAINING_WITHOUT_DIFFUSION = { "CFB", "OFB", "CTR", "GCM" };
-        //private        readonly Cipher                       cipher;
-
         private readonly BufferedBlockCipher?        bufferedBlockCipher;
         private readonly PaddedBufferedBlockCipher?  paddedBufferedBlockCipher;
 
@@ -37,7 +34,7 @@ namespace SAFESealing
 
         #region Properties
 
-        public String Algorithm
+        public String                       Algorithm
             => bufferedBlockCipher?.      AlgorithmName ??
                paddedBufferedBlockCipher?.AlgorithmName ??
                String.Empty;
@@ -189,11 +186,17 @@ namespace SAFESealing
                                      KeyParameter  SecretKey)
         {
 
+            #region Data
+
             if (Plaintext.Length == 0)
                 return ByteArray.Error("Invalid plaintext!");
 
             if (SecretKey.GetKey().Length != 32)
                 return ByteArray.Error("Secret key must be exactly 256 bits (32 bytes) long!");
+
+            #endregion
+
+            #region Generate an initialization vector, when required...
 
             if (IVRequired && IV.Length == 0)
             {
@@ -205,6 +208,10 @@ namespace SAFESealing
                 rng.GetBytes(IV);
 
             }
+
+            #endregion
+
+            #region Buffered Block Cipher
 
             if (bufferedBlockCipher is not null)
             {
@@ -226,6 +233,10 @@ namespace SAFESealing
 
             }
 
+            #endregion
+
+            #region Padded Buffered Block Cipher
+
             else if (paddedBufferedBlockCipher is not null)
             {
 
@@ -245,6 +256,8 @@ namespace SAFESealing
                 return ByteArray.Ok(output);
 
             }
+
+            #endregion
 
             else
                 return ByteArray.Error("No cipher available!");
@@ -290,11 +303,17 @@ namespace SAFESealing
                                          Byte[]?       InitializationVector   = null)
         {
 
+            #region Data
+
             if (Ciphertext.Length == 0)
                 return ByteArray.Error("Invalid ciphertext!");
 
             if (SecretKey.GetKey().Length != 32)
                 return ByteArray.Error("Key must be 256 bits (32 bytes) long!");
+
+            #endregion
+
+            #region Buffered Block Cipher
 
             if (bufferedBlockCipher is not null)
             {
@@ -315,6 +334,10 @@ namespace SAFESealing
                 return IntegrityPaddingInstance.VerifyAndExtract(output);
 
             }
+
+            #endregion
+
+            #region Padded Buffered Block Cipher
 
             else if (paddedBufferedBlockCipher is not null &&
                      InitializationVector      is not null &&
@@ -338,22 +361,10 @@ namespace SAFESealing
 
             }
 
+            #endregion
+
             else
                 return ByteArray.Error("No cipher available!");
-
-
-            //if (InitializationVector is not null && InitializationVector.Length > 0)
-            //    cipher.Init(CipherMode.DECRYPT_MODE,
-            //                SecretKey,
-            //                new IvParameterSpec(InitializationVector)); // Will create its own iv, and we have to retrieve it later with cipher.getIV();
-            //
-            //else
-            //    cipher.Init(CipherMode.DECRYPT_MODE,
-            //                SecretKey);
-            //
-            //var decryptedData = cipher.DoFinal(Ciphertext);
-            //
-            //return IntegrityPaddingInstance.CheckAndExtract(decryptedData);
 
         }
 

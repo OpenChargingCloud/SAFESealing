@@ -121,8 +121,7 @@ namespace SAFESealing
 
             // RSA will support single blocks only...
             // therefore, we have to split them ourselves.
-            var inputLength     = (UInt32) padded.Length;
-            var outputLength    = inputLength  / algorithmSpec.UsableBlockSize * algorithmSpec.CipherBlockSize; // scaling from one to the other
+            var outputLength    = (UInt64) (padded.Length / algorithmSpec.UsableBlockSize * algorithmSpec.CipherBlockSize);
             var encrypted       = new Byte[outputLength];
             var numBlocksInput  = outputLength / algorithmSpec.CipherBlockSize;
 

@@ -25,77 +25,95 @@ namespace SAFESealing
         public static Byte[] WrapForTransport(InternalTransportTuple TransportTuple)
         {
 
-            var keyAgreementProtocolOID  = TransportTuple.CryptoSettings.KeyAgreementProtocol?.       OID;
-            var ecAlgorithmOID           = TransportTuple.CryptoSettings.KeyAgreementCipher?.         OID;
-            var keyDiversificationOID    = TransportTuple.CryptoSettings.KeyDiversificationAlgorithm?.OID;
-            var encryptionOID            = TransportTuple.CryptoSettings.Encryption?.                 OID;
-            var compressionOID           = TransportTuple.CryptoSettings.Compression?.                OID;
+            #region Encryption    Sequence
 
-            Asn1EncodableVector? ecDetails = null; // details about the elliptic curve used, optional. not in current version.
-            // see https://www.rfc-editor.org/rfc/rfc3279 for encoding of ECParameters
+            var encryptionOID            = TransportTuple.CryptoSettings.Encryption?.OID;
+            var encryptionPart           = new Asn1EncodableVector {
+                                               SharedConstants.OID_IIP_ALGORITHM, // or wrap in context[1] ?
+                                               new DerTaggedObject(0, encryptionOID)
+                                           };
 
-            Asn1Encodable? keyReference = null; // key reference for the public key to be used. not in current version
-
-            // using bouncy castle. easier with TLVIterator in a later version
-            //----
-            // prepare first part
-            var encryptionPart = new Asn1EncodableVector {
-                                     SharedConstants.OID_IIP_ALGORITHM, // or wrap in context[1] ?
-                                     new DerTaggedObject(0, encryptionOID)
-                                 };
-
+            var compressionOID           = TransportTuple.CryptoSettings.Compression?.OID;
             if (compressionOID is not null) // may be omitted
                 encryptionPart.Add(new DerTaggedObject(1, compressionOID));
+
             if (true)
                 encryptionPart.Add(new DerTaggedObject(2, new DerInteger(TransportTuple.CryptoSettings.EncryptionKeySize.Value)));
+
             if (false)
                 encryptionPart.Add(new DerTaggedObject(3, new DerInteger(InterleavedIntegrityPadding.NONCE_SIZE* 8)));
 
             if (TransportTuple.CryptoIV is not null) //@TODO check reader must accept absence
                 encryptionPart.Add(new DerOctetString(TransportTuple.CryptoIV));
 
-            var firstSequence = new DerTaggedObject(0, new DerSequence(encryptionPart));
+            var encryptionSequence       = new DerTaggedObject(0, new DerSequence(encryptionPart));
 
+            #endregion
 
-            // prepare second part
-            var keyAgreementPart = new Asn1EncodableVector();
+            #region Key Agreement Sequence
+
+            var keyAgreementProtocolOID  = TransportTuple.CryptoSettings.KeyAgreementProtocol?.OID;
+            var keyAgreementPart         = new Asn1EncodableVector();
 
             if (keyAgreementProtocolOID is not null) // used only if this layer is activated
             {
+
                 keyAgreementPart.Add(keyAgreementProtocolOID);
                 keyAgreementPart.Add(new DerOctetString(TransportTuple.KeyDiversificationData));
+
                 // details on our EC
+                var keyDiversificationOID  = TransportTuple.CryptoSettings.KeyDiversificationAlgorithm?.OID;
                 keyAgreementPart.Add(new DerTaggedObject(0, keyDiversificationOID));
 
-                if (ecAlgorithmOID != null)
+                // see https://www.rfc-editor.org/rfc/rfc3279 for encoding of ECParameters
+                var ecAlgorithmOID         = TransportTuple.CryptoSettings.KeyAgreementCipher?.OID;
+                if (ecAlgorithmOID is not null)
                     keyAgreementPart.Add(new DerTaggedObject(1, ecAlgorithmOID));
 
-                // the usual sequence for ECDetails would be: SEQUENCE (OID_ECDH_PUBLIC_KEY, OID_EC_NAMED_CURVE_SECP_256_R1, 03 nn xxxx data)
+                // Details about the elliptic curve used, optional.
+                // Not in current version!
+                // The usual sequence for ECDetails would be: SEQUENCE (OID_ECDH_PUBLIC_KEY, OID_EC_NAMED_CURVE_SECP_256_R1, 03 nn xxxx data)
+                Asn1EncodableVector? ecDetails      = null;
                 if (ecDetails is not null)
                     keyAgreementPart.Add(new DerTaggedObject(2, new DerSequence(ecDetails)));
-                // optional: public key references)
+
+                // Public key reference for the public key to be used.
+                // Not in current version!
+                Asn1Encodable?       keyReference   = null;
                 if (keyReference is not null)
                     keyAgreementPart.Add(new DerTaggedObject(3, new DerSequence(keyReference))); // optional: the public key references
+
             }
 
-            var secondSequence        = new DerTaggedObject(1, new DerSequence(keyAgreementPart));
+            var keyAgreementSequence     = new DerTaggedObject(1, new DerSequence(keyAgreementPart));
 
-            var authenticityPart      = new Asn1EncodableVector();
+            #endregion
+
+            #region Authenticity  Sequence
+
+            var authenticityPart         = new Asn1EncodableVector();
+
             // auth part not in use in version 1, so this sequence is empty.
             // authenticityPart.add(OID_SAFE_SEAL_AUTH);
-            var thirdSequence         = new DerTaggedObject(2, new DerSequence(authenticityPart));
+            var authenticitySequence     = new DerTaggedObject(2, new DerSequence(authenticityPart));
 
-            // top-level sequence
-            var bufferStream          = new MemoryStream();
-            var derSequenceGenerator  = new DerSequenceGenerator(bufferStream);
+            #endregion
 
-            derSequenceGenerator.AddObject(SharedConstants.OID_SAFE_SEAL);
+            #region Top-Level     Sequence
+
+            var bufferStream             = new MemoryStream();
+            var derSequenceGenerator     = new DerSequenceGenerator(bufferStream);
+
+            derSequenceGenerator.AddObject(               SharedConstants.OID_SAFE_SEAL);
             derSequenceGenerator.AddObject(new DerInteger(SharedConstants.SAFE_SEAL_VERSION));
-            derSequenceGenerator.AddObject(firstSequence);
-            derSequenceGenerator.AddObject(secondSequence);
-            derSequenceGenerator.AddObject(thirdSequence);
+            derSequenceGenerator.AddObject(encryptionSequence);
+            derSequenceGenerator.AddObject(keyAgreementSequence);
+            derSequenceGenerator.AddObject(authenticitySequence);
             derSequenceGenerator.AddObject(new DerOctetString(TransportTuple.EncryptedData));
+
             derSequenceGenerator.Close();
+
+            #endregion
 
             // bufferStream.write(0x00); bufferStream.write(0x00); // explicit EOC/EOS - fully optional, but safer.
             return bufferStream.ToArray();

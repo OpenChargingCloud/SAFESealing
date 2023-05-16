@@ -75,10 +75,7 @@ namespace SAFESealing
                                                                        this.cipherBlockSize);
 
             if (bufferSizeRequiredLong > Int32.MaxValue)
-                throw new Exception($"payload too large, maximum size in byte is {Int32.MaxValue}!");
-
-            if (bufferSizeRequiredLong <= 0)
-                throw new Exception($"payload too small!");
+                throw new Exception($"The gieven payload is too large. Its maximum size in byte is {Int32.MaxValue}!");
 
             var buffer = new Byte[(Int32) bufferSizeRequiredLong];
 
@@ -102,122 +99,120 @@ namespace SAFESealing
             if (PaddedData.Length % cipherBlockSize != 0)
                 throw new Exception("Invalid buffer size!");
 
-            var id                      = new Byte[MAGIC_ID_LENGTH];
+            var success                 = true;
+            var magicId                 = new Byte[MAGIC_ID_LENGTH];
             var nonce                   = new Byte[NONCE_SIZE];
             var lengthBuffer            = new Byte[PAYLOAD_LENGTH_SIZE];
-            Byte[] payloadBuffer        = null;
-            var idLengthExpected        = CalculateIDsizeUsed();
-            var numHeaderPaddingBytes   = cipherBlockSize-(idLengthExpected+NONCE_SIZE+PAYLOAD_LENGTH_SIZE);
-            Boolean success             = true;
-
             var devNull                 = new Byte[1];
             var int32Buffer             = new Byte[4];
+            var paddedDataStream        = new MemoryStream(PaddedData);
+            //paddedDataStream.order(ByteOrder.BIG_ENDIAN);
 
-            var bb = new MemoryStream(PaddedData);
-            //bb.order(ByteOrder.BIG_ENDIAN);
+            var idLengthExpected        = CalculateIdSizeUsed();
+            var numHeaderPaddingBytes   = cipherBlockSize - (idLengthExpected + NONCE_SIZE + PAYLOAD_LENGTH_SIZE);
 
             try
             {
 
-                // 1. start reading
-                bb.Read(id, 0, (Int32) idLengthExpected);
-                while (numHeaderPaddingBytes>0)
+                // 1. Read and verify MAGIC ID
+                paddedDataStream.Read(magicId, 0, (Int32) idLengthExpected);
+
+                if (CompareBytes(magicId, MAGIC_ID_VERSION_1_0, idLengthExpected) == false)
+                    throw new Exception("Format error!");
+
+                // 2. Skip padding bytes
+                while (numHeaderPaddingBytes > 0)
                 {
-                    bb.Read(devNull); // skip
+                    paddedDataStream.Read(devNull);
                     numHeaderPaddingBytes--;
                 }
-                bb.Read(nonce);
-                bb.Read(lengthBuffer);
-                var payloadLength = BitConverter.ToUInt32(lengthBuffer, 0); // implementation limit 2 GB
 
-                // 2. check ID
-                if (SharedCode.CompareBytes(id, MAGIC_ID_VERSION_1_0, idLengthExpected) == false)
-                    success = false;
-                // early exit possible.
+                // 3. Read Nonce
+                paddedDataStream.Read(nonce);
+                var nonceCounter           = BitConverter.ToUInt32(nonce,        0);
 
-                // 3. convert and check length
-                // first rough check
-                if (payloadLength>=PaddedData.Length)
-                    throw new Exception(); // in this case, we have to quit early, since we cannot predict the number of subsequent blocks correctly
+                // 4. Read payload length, implementation limit 4 GB
+                //    In case, we have to quit early, since we cannot predict the number of subsequent blocks correctly!
+                paddedDataStream.Read(lengthBuffer);
+                var payloadLength          = BitConverter.ToUInt32(lengthBuffer, 0);
 
-                var expectedPayloadBlocks  = SharedCode.CalculateNumberOfPayloadBlocks(payloadLength, payloadBytesPerBlock);
-                //@IMPROVEMENT different calculation allowing us to delay the exit, eg. from overall length and cipherBlockSize
+                if (payloadLength >= PaddedData.Length)
+                    throw new Exception($"Payload length {payloadLength} >= PaddedData length {PaddedData.Length}!");
 
-                // 3. get nonce counter ready
-                var nonceCounter           = BitConverter.ToUInt32(nonce, 0);
+                var expectedPayloadBlocks  = CalculateNumberOfPayloadBlocks(payloadLength,
+                                                                            payloadBytesPerBlock);
 
-                // 4. prepare output buffer. -- for supplied buffers, there is a requirement of minimum size to be checked.
-                payloadBuffer = new Byte[payloadLength];
+                // 5. Prepare output buffer. -- for supplied buffers, there is a requirement of minimum size to be checked.
+                var payloadBuffer          = new Byte[payloadLength];
 
-                // 5. loop through all expected blocks
-                var payloadOffset = 0U;
+                // 6. Loop through all expected blocks
+                var payloadOffset          = 0U;
                 for (var i = 0; i<expectedPayloadBlocks; i++)
                 {
 
                     nonceCounter++;
-                    bb.Read(int32Buffer);
-                    var givenCounterValue = BitConverter.ToUInt32(int32Buffer);
+                    paddedDataStream.Read(int32Buffer);
+                    var givenCounterValue  = BitConverter.ToUInt32(int32Buffer);
 
                     if (givenCounterValue != nonceCounter)
                         success = false; // foil timing attacks here by not exiting right away.
 
                     // copy payload data over
                     var remainder = payloadLength - payloadOffset;
-                    bb.Read(payloadBuffer,
-                            (Int32) payloadOffset,
-                            (Int32) (remainder > payloadBytesPerBlock
-                                         ? payloadBytesPerBlock
-                                         : remainder));
+                    paddedDataStream.Read(payloadBuffer,
+                                          (Int32) payloadOffset,
+                                          (Int32) (remainder > payloadBytesPerBlock
+                                                       ? payloadBytesPerBlock
+                                                       : remainder));
 
                     payloadOffset += payloadBytesPerBlock;
 
                 }
 
-                // check whether to expect a trailing block or not
+                // 7. Check whether to expect a trailing block or not
 
                 if (payloadLength % payloadBytesPerBlock == 0) // perfect match means trailing block
                 {
 
-                    // 6. skip optional padding to next block start
-                    SkipToBlockSize(bb);
+                    // 8. Skip optional padding to next block start
+                    SkipToBlockSize(paddedDataStream);
 
-                    // 7. check trailing nonce copy to match to the heading one.
+                    // 9. Check trailing nonce copy to match to the heading one.
                     nonceCounter++;
-                    bb.Read(int32Buffer);
-                    var givenCounterValue = BitConverter.ToUInt64(int32Buffer);
+                    paddedDataStream.Read(int32Buffer);
+                    var givenCounterValue  = BitConverter.ToUInt64(int32Buffer);
 
                     if (givenCounterValue != nonceCounter)
                         success = false; // foil timing attacks here by not exiting right away.
 
-                    // 8. omit/ignore trailing random data after that.
-                    SkipToBlockSize(bb); // not needed for validation, just to access the bytes in memory
+                    // 10. Omit/ignore trailing random data after that.
+                    SkipToBlockSize(paddedDataStream); // not needed for validation, just to access the bytes in memory
 
                 }
 
-                // plausibility check whether we've accurately reached the end.
+                // 11. Plausibility check whether we've accurately reached the end.
                 if (payloadOffset < payloadLength)
                     success = false;
 
-                // plausibility check whether the remaining # of bytes is less than blocksize. otherwise, something's off.
+                // Plausibility check whether the remaining # of bytes is less than blocksize. otherwise, something's off.
                 //if (bb.hasArray()) // arrayOffset is available only if this is given.
                 //{
                 //    if (bb.arrayOffset()%cipherBlockSize>payloadBytesPerBlock)
                 //        success = false;
                 //}
 
-            }
+                if (success != true)
+                    throw new Exception();
 
+                return payloadBuffer;
+
+            }
             catch (Exception e)
             {
+                // integer overflow from Math.toIntExact if one of those values is corrupted
                 Debug.WriteLine(e);
-                success = false; //integer overflow from Math.toIntExact if one of those values is corrupted
+                throw;
             }
-
-            // 8. result: OK or failure.
-            if (success != true)
-                throw new Exception();
-
-            return payloadBuffer;
 
         }
 
@@ -236,11 +231,6 @@ namespace SAFESealing
                                             Byte[] OutputBuffer)
         {
 
-            // check input parameters
-            //assert (input        != null);
-            //assert (outputBuffer != null);
-
-            // prepare the protection nonce
             var nonce = new Byte[NONCE_SIZE];
             rng.NextBytes(nonce);
 
@@ -257,7 +247,7 @@ namespace SAFESealing
 
                 // heading ("header") block
                 // write ID, shortened if need be.
-                var idSizeUsed = CalculateIDsizeUsed();
+                var idSizeUsed = CalculateIdSizeUsed();
                 bb.Write(MAGIC_ID_VERSION_1_0, 0, (Int32) idSizeUsed);
 
 
@@ -329,6 +319,9 @@ namespace SAFESealing
 
         #endregion
 
+
+        // Helper methods
+
         #region (private) PadToBlockSizeWithRandom(ByteBuffer)
 
         /// <summary>
@@ -339,8 +332,8 @@ namespace SAFESealing
         {
 
             // fill up to block size with random data.
-            var currentDiff  = SharedCode.CalculatePadding((UInt32) ByteBuffer.Position,
-                                                           cipherBlockSize);
+            var currentDiff  = CalculatePadding((UInt32) ByteBuffer.Position,
+                                                cipherBlockSize);
 
             var randomBytes  = new Byte[1];
 
@@ -365,8 +358,8 @@ namespace SAFESealing
         private void SkipToBlockSize(MemoryStream ByteBuffer)
         {
 
-            var currentDiff = SharedCode.CalculatePadding((UInt32) ByteBuffer.Position,
-                                                          cipherBlockSize);
+            var currentDiff = CalculatePadding((UInt32) ByteBuffer.Position,
+                                               cipherBlockSize);
 
             // if not at block boundary, fill with random data.
             while (currentDiff != 0)
@@ -379,12 +372,12 @@ namespace SAFESealing
 
         #endregion
 
-        #region (private) CalculateIDsizeUsed()
+        #region (private) CalculateIdSizeUsed()
 
         /// <summary>
         /// Calculate number of bytes from the ID value to be used in given circumstances.
         /// </summary>
-        private UInt32 CalculateIDsizeUsed()
+        private UInt32 CalculateIdSizeUsed()
         {
 
             var headerPad = (Int32) (cipherBlockSize - (MAGIC_ID_LENGTH + NONCE_SIZE + PAYLOAD_LENGTH_SIZE));
@@ -400,7 +393,7 @@ namespace SAFESealing
 
         #endregion
 
-        #region (private) CalculateNumberOfBytesOverall(PayloadLengthInBytes, CipherBlockSize)
+        #region (private) CalculateNumberOfBytesOverall (PayloadLengthInBytes, CipherBlockSize)
 
         /// <summary>
         /// Calculate the buffer size.
@@ -418,16 +411,118 @@ namespace SAFESealing
         #region (private) CalculateNumberOfBlocksOverall(PayloadLengthInBytes, PayloadBytesPerBlock)
 
         /// <summary>
+        /// Return the number of required block: IIP Header Block + Data Blocks.
+        /// 
         /// This implementation prefers legibility to efficiency.
-        /// Compilers will be able to optimise this nicely
+        /// Compilers will be able to optimise this nicely.
         /// </summary>
         /// <param name="PayloadLengthInBytes">The payload length in bytes.</param>
         /// <param name="PayloadBytesPerBlock">The payload bytes per block.</param>
         private static UInt32 CalculateNumberOfBlocksOverall(UInt32 PayloadLengthInBytes,
                                                              UInt32 PayloadBytesPerBlock)
 
-            => 1 + SharedCode.CalculateNumberOfPayloadBlocks(PayloadLengthInBytes + NONCE_SIZE,
-                                                             PayloadBytesPerBlock); // header block + data blocks
+            => 1 + CalculateNumberOfPayloadBlocks(PayloadLengthInBytes + NONCE_SIZE,
+                                                  PayloadBytesPerBlock);
+
+        #endregion
+
+        #region (private) CalculateNumberOfPayloadBlocks(PayloadLengthInBytes, PayloadBytesPerBlock)
+
+        /// <summary>
+        /// Calculate number of payload blocks.
+        /// </summary>
+        /// <param name="PayloadLengthInBytes">The payload length in bytes.</param>
+        /// <param name="PayloadBytesPerBlock">The payload bytes per block.</param>
+        private static UInt32 CalculateNumberOfPayloadBlocks(UInt32 PayloadLengthInBytes,
+                                                             UInt32 PayloadBytesPerBlock)
+
+            => (PayloadLengthInBytes + CalculatePadding(PayloadLengthInBytes,
+                                                        PayloadBytesPerBlock)) / PayloadBytesPerBlock;
+
+        #endregion
+
+        #region (private) CalculatePadding(Number, Alignment)
+
+        /// <summary>
+        /// Calculate the number of additional padding elements
+        /// that need to be added to be aligned with the alignment value.
+        /// </summary>
+        /// <param name="Number">The current value.</param>
+        /// <param name="Alignment">The boundary it is to be aligned with.</param>
+        private static UInt32 CalculatePadding(UInt32 Number,
+                                               UInt32 Alignment)
+        {
+
+            var diff = Number % Alignment;
+
+            return diff != 0
+                       ? Alignment - diff
+                       : 0;
+
+        }
+
+        #endregion
+
+        #region (private) CompareBytes(Array1, Array2, MaxBytesToCompare)
+
+        /// <summary>
+        /// Compare the given byte arrays.
+        /// </summary>
+        /// <param name="Array1">The first array of bytes for comparison</param>
+        /// <param name="Array2">The second array of bytes for comparison</param>
+        /// <param name="MaxBytesToCompare">The number of bytes to compare.</param>
+        private static Boolean CompareBytes(Byte[] Array1,
+                                            Byte[] Array2,
+                                            UInt32 MaxBytesToCompare)
+        {
+
+            if (Array1.Length != Array2.Length)
+                return false;
+
+            for (var i = 0U; i < MaxBytesToCompare; i++)
+            {
+                if (Array1[i] != Array2[i])
+                    return false;
+            }
+
+            return true;
+
+        }
+
+        #endregion
+
+        #region (private) CompareBytes(Array1, Offset1, Array2, Offset2, MaxBytesToCompare)
+
+        /// <summary>
+        /// Compare the given byte arrays.
+        /// </summary>
+        /// <param name="Array1">The first array of bytes for comparison</param>
+        /// <param name="Offset1">The offset where to start in the first byte array</param>
+        /// <param name="Array2">The second array of bytes for comparison</param>
+        /// <param name="Offset2">The offset where to start in the second byte array</param>
+        /// <param name="MaxBytesToCompare">The number of bytes to compare.</param>
+        private static Boolean CompareBytes(Byte[]  Array1,
+                                            UInt32  Offset1,
+                                            Byte[]  Array2,
+                                            UInt32  Offset2,
+                                            UInt32  MaxBytesToCompare)
+        {
+
+            if (Offset1 + MaxBytesToCompare > Array1.Length ||
+                Offset2 + MaxBytesToCompare > Array2.Length)
+            {
+                return false;
+            }
+
+            for (var i = 0U; i < MaxBytesToCompare; i++)
+            {
+                if (Array1[Offset1 + i] != Array2[Offset2 + i])
+                    return false;
+            }
+
+            return true;
+
+        }
 
         #endregion
 

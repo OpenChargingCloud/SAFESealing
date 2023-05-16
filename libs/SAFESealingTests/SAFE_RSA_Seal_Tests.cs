@@ -87,10 +87,14 @@ namespace SAFESealing.Tests
                 var sealedData  = new SAFESealSealer().Seal(rsa2048_PrivateKey,
                                                             Encoding.UTF8.GetBytes(plaintext1));
 
+                Assert.IsTrue(sealedData.HasNoErrors);
+
+
                 // RECIPIENT performs revealing
                 var plaintext2  = new SAFESealRevealer().Reveal(rsa2048_PublicKey,
                                                                 sealedData);
 
+                Assert.IsTrue  (plaintext2.HasNoErrors);
                 Assert.AreEqual(plaintext1, Encoding.UTF8.GetString(plaintext2));
 
             }
@@ -121,10 +125,14 @@ namespace SAFESealing.Tests
                 var sealedData  = new SAFESealSealer().Seal(rsa2048_PrivateKey,
                                                             Encoding.UTF8.GetBytes(plaintext1));
 
+                Assert.IsTrue(sealedData.HasNoErrors);
+
+
                 // RECIPIENT performs revealing
                 var plaintext2  = new SAFESealRevealer().Reveal(rsa2048_PublicKey,
                                                                 sealedData);
 
+                Assert.IsTrue  (plaintext2.HasNoErrors);
                 Assert.AreEqual(plaintext1, Encoding.UTF8.GetString(plaintext2));
 
             }
@@ -155,10 +163,14 @@ namespace SAFESealing.Tests
                 var sealedData  = new SAFESealSealer().Seal(rsa4096_PrivateKey,
                                                             Encoding.UTF8.GetBytes(plaintext1));
 
+                Assert.IsTrue(sealedData.HasNoErrors);
+
+
                 // RECIPIENT performs revealing
                 var plaintext2  = new SAFESealRevealer().Reveal(rsa4096_PublicKey,
                                                                 sealedData);
 
+                Assert.IsTrue  (plaintext2.HasNoErrors);
                 Assert.AreEqual(plaintext1, Encoding.UTF8.GetString(plaintext2));
 
             }
@@ -189,10 +201,14 @@ namespace SAFESealing.Tests
                 var sealedData  = new SAFESealSealer().Seal(rsa4096_PrivateKey,
                                                             Encoding.UTF8.GetBytes(plaintext1));
 
+                Assert.IsTrue(sealedData.HasNoErrors);
+
+
                 // RECIPIENT performs revealing
                 var plaintext2  = new SAFESealRevealer().Reveal(rsa4096_PublicKey,
                                                                 sealedData);
 
+                Assert.IsTrue  (plaintext2.HasNoErrors);
                 Assert.AreEqual(plaintext1, Encoding.UTF8.GetString(plaintext2));
 
             }

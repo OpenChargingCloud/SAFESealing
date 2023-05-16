@@ -1,6 +1,7 @@
 ﻿
 #region Usings
 
+using System.ComponentModel.DataAnnotations;
 using System.Text.RegularExpressions;
 
 #endregion
@@ -41,79 +42,85 @@ namespace SAFESealing
         #endregion
 
 
-        #region Seal  (Plaintext,   SenderPrivateKey,    RecipientPublicKeys, Nonce)
+        #region Seal  (Plaintext,   RSAPrivateKey)
 
         /// <summary>
-        /// Seal contents: perform calculation of ephemeral key, padding, encryption, and formatting for transport.
+        /// Perform padding, encryption and formatting for transport of the given plaintext.
         /// </summary>
         /// <param name="Plaintext">A plaintext for sealed transport.</param>
-        /// <param name="SenderRSAPrivateKey">A sender private key (caller's key).</param>
-        /// <param name="RecipientPublicKeys">A recipient public key(s).</param>
-        /// <param name="Nonce">A cryptographic nonce for increasing the entropy. A random number or a monotonic counter is recommended.</param>
-        /// <returns>The wrapped and sealed message.</returns>
-        public Byte[] Seal(Byte[]         Plaintext,
-                           RSAPrivateKey  SenderRSAPrivateKey)
+        /// <param name="RSAPrivateKey">A RSA private key.</param>
+        public ByteArray Seal(Byte[]         Plaintext,
+                              RSAPrivateKey  RSAPrivateKey)
         {
 
-            var asymmetricLayer = SenderRSAPrivateKey.Key.Modulus.BitLength switch {
-              //1024 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA1024),  //ahzf: RSA1024 is NOT DEFINED within AlgorithmSpecCollection!!?
-                2048 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA2048),
-                4096 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA4096),
-                _    => throw new Exception("Unsupported RSA key length: " + SenderRSAPrivateKey.Key.Modulus.BitLength),
-            };
+            var rsaWithIntegrityPadding  = RSAPrivateKey.Key.Modulus.BitLength switch {
+                                               2048 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA2048),
+                                               4096 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA4096),
+                                               _    => null
+                                           };
+
+            if (rsaWithIntegrityPadding is null)
+                return ByteArray.Error("Unsupported RSA key length: " + RSAPrivateKey.Key.Modulus.BitLength);
 
             // No diversification needed for direct RSA application
-            var itt            = new InternalTransportTuple(
-                                     new CryptoSettings(
-                                         null,
-                                         null,
-                                         null,
-                                         AlgorithmSpecCollection.RSA2048,
-                                         AlgorithmSpecCollection.COMPRESSION_NONE,
-                                         null,
-                                         (UInt32) SenderRSAPrivateKey.Key.Modulus.BitLength
-                                     ),
-                                     asymmetricLayer.SymmetricIV,  //ToDo(ahzf): This is allways null!?
-                                     Array.Empty<Byte>(),
-                                     Array.Empty<Byte>()
-                                 );
+            var internalTransportTuple   = new InternalTransportTuple(
+                                               new CryptoSettings(
+                                                   null,
+                                                   null,
+                                                   null,
+                                                   AlgorithmSpecCollection.RSA2048,
+                                                   AlgorithmSpecCollection.COMPRESSION_NONE,
+                                                   null,
+                                                   (UInt32) RSAPrivateKey.Key.Modulus.BitLength
+                                               ),
+                                               rsaWithIntegrityPadding.SymmetricIV,  //ToDo(ahzf): This is allways null!?
+                                               Array.Empty<Byte>(),
+                                               Array.Empty<Byte>()
+                                           );
 
-            var payload        = CompressionMode
-                                     ? Plaintext
-                                     : SAFESeal.TryToCompress(Plaintext, itt);
+            var payload                  = CompressionMode
+                                               ? ByteArray.Ok           (Plaintext)
+                                               : SAFESeal. TryToCompress(Plaintext, internalTransportTuple);
+
+            if (payload.HasErrors)
+                return payload;
 
             // Perform asymmetric crypto, symmetric crypto, and padding
-            itt.EncryptedData  = asymmetricLayer.PadEncryptAndPackage(payload,
-                                                                      SenderRSAPrivateKey);
+            var encryptedData  = rsaWithIntegrityPadding.PadEncryptAndPackage(payload,
+                                                                              RSAPrivateKey);
+
+            if (encryptedData.HasErrors)
+                return ByteArray.Error("Invalid encrypted data!");
+
+            internalTransportTuple.EncryptedData  = encryptedData;
 
             // Format the tuple for transport
-            return TransportFormatConverter.WrapForTransport(itt);
+            return TransportFormatConverter.WrapForTransport(internalTransportTuple);
 
         }
 
         #endregion
 
-        #region Reveal(SealedInput, RecipientPrivateKey, SenderPublicKey)
+        #region Reveal(SealedInput, SenderPublicKey)
 
         /// <summary>
-        /// Carefully check the sealing, unseal, and return payload data.
-        /// Performs transport unwrapping, calculation of ephemeral key, decryption, and integrity validation.
-        /// The most important Exception is the BadPaddingException which signals the integrity validation has failed.
+        /// Check the sealing, unseal, verify and return payload data.
         /// </summary>
-        /// <param name="SealedInput">An array of bytes.</param>
-        /// <param name="SenderPublicKey">A public key of the sender.</param>
-        /// <returns>The plaintext, when everything went OK and the integrity has been validated.</returns>
-        public Byte[] Reveal(Byte[]        SealedInput,
-                             RSAPublicKey  SenderPublicKey) // is one sender public key enough if several were used in sending?
+        /// <param name="SealedInput">A sealed input.</param>
+        /// <param name="RSAPublicKey">A RSA public key.</param>
+        public ByteArray Reveal(Byte[]        SealedInput,
+                                RSAPublicKey  RSAPublicKey)
         {
 
-            var tuple           = TransportFormatConverter.UnwrapTransportFormat(SealedInput)
-                                      ?? throw new Exception("Invalid transport tuple!");
+            var tuple                    = TransportFormatConverter.UnwrapTransportFormat(SealedInput);
+            if (tuple.Item1 is null || tuple.Item1.EncryptedData is null || tuple.Item1.EncryptedData.Length == 0)
+                return ByteArray.Error("Invalid transport tuple!");
 
             #region Compression settings
 
-            var compressionOID  = (tuple.CryptoSettings.Compression?.OID)
-                                      ?? throw new Exception("Invalid compression information!");
+            var compressionOID  = tuple.Item1.CryptoSettings.Compression?.OID;
+            if (compressionOID is null)
+                return ByteArray.Error("Invalid compression information!");
 
             if      (compressionOID.Equals(AlgorithmSpecCollection.COMPRESSION_GZIP.OID))
                 CompressionMode = true;
@@ -122,23 +129,23 @@ namespace SAFESealing
                 CompressionMode = false;
 
             else
-                throw new Exception("Invalid or unknown compression!");
+                return ByteArray.Error("Invalid or unknown compression!");
 
             #endregion
 
-            // @IMPROVEMENT for later versions: allow to for a more flexible selection of algorithms.
-            var payload  = (tuple.CryptoSettings.EncryptionKeySize switch {
+            var rsaWithIntegrityPadding  = tuple.Item1.CryptoSettings.EncryptionKeySize switch {
+                                               2048 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA2048),
+                                               4096 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA4096),
+                                               _ => null
+                                           };
 
-                                //1024 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA1024),  //ahzf: RSA1024 is NOT DEFINED within AlgorithmSpecCollection!!?
-                                2048 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA2048),
-                                4096 => new RSAWithIntegrityPadding(AlgorithmSpecCollection.RSA4096),
+            if (rsaWithIntegrityPadding is null)
+                return ByteArray.Error("The given RSA key size is not supported!");
 
-                                _ => throw new Exception("Specified key size not supported"),
+            var payload                  = rsaWithIntegrityPadding.DecryptAndVerify(tuple.Item1.EncryptedData,
+                                                                                    RSAPublicKey);
 
-                            }).DecryptAndVerify(tuple.EncryptedData,
-                                                SenderPublicKey);
-
-            return CompressionMode
+            return CompressionMode && payload.HasNoErrors
                        ? SAFESeal.InflateZLIBcompressedData(payload)
                        : payload;
 

@@ -164,10 +164,10 @@ namespace SAFESealing
         /// <param name="OtherSideECPublicKey">An elliptic curve public key.</param>
         /// <param name="OurECPrivateKey">An elliptic curve private key.</param>
         /// <param name="Nonce">A cryptographic nonce for increasing the entropy.</param>
-        public Byte[] PadEncryptAndPackage(Byte[]                  Plaintext,
-                                           ECPublicKeyParameters   OtherSideECPublicKey,
-                                           ECPrivateKeyParameters  OurECPrivateKey,
-                                           Byte[]                  Nonce)
+        public ByteArray PadEncryptAndPackage(Byte[]                  Plaintext,
+                                                     ECPublicKeyParameters   OtherSideECPublicKey,
+                                                     ECPrivateKeyParameters  OurECPrivateKey,
+                                                     Byte[]                  Nonce)
 
 
             => symmetricEncryption.PadAndEncrypt(Plaintext,
@@ -186,10 +186,10 @@ namespace SAFESealing
         /// <param name="OtherSideECPublicKeys">An enumeration of elliptic curve public keys.</param>
         /// <param name="OurECPrivateKey">An elliptic curve private key.</param>
         /// <param name="Nonce">A cryptographic nonce for increasing the entropy.</param>
-        public Byte[] PadEncryptAndPackage(Byte[]                              Plaintext,
-                                           IEnumerable<ECPublicKeyParameters>  OtherSideECPublicKeys,
-                                           ECPrivateKeyParameters              OurECPrivateKey,
-                                           Byte[]                              Nonce)
+        public ByteArray PadEncryptAndPackage(Byte[]                              Plaintext,
+                                                     IEnumerable<ECPublicKeyParameters>  OtherSideECPublicKeys,
+                                                     ECPrivateKeyParameters              OurECPrivateKey,
+                                                     Byte[]                              Nonce)
 
 
             => symmetricEncryption.PadAndEncrypt(Plaintext,
@@ -210,11 +210,11 @@ namespace SAFESealing
         /// <param name="OurECPrivateKey">An elliptic curve private key.</param>
         /// <param name="Nonce">A cryptographic nonce for increasing the entropy.</param>
         /// <param name="InitializationVector">A cryptographic initialization vector.</param>
-        public Byte[] DecryptAndVerify(Byte[]                  Ciphertext,
-                                       ECPublicKeyParameters   OtherSideECPublicKey,
-                                       ECPrivateKeyParameters  OurECPrivateKey,
-                                       Byte[]                  Nonce,
-                                       Byte[]                  InitializationVector)
+        public ByteArray DecryptAndVerify(Byte[]                  Ciphertext,
+                                                 ECPublicKeyParameters   OtherSideECPublicKey,
+                                                 ECPrivateKeyParameters  OurECPrivateKey,
+                                                 Byte[]                  Nonce,
+                                                 Byte[]                  InitializationVector)
 
 
             => symmetricEncryption.DecryptAndCheck(Ciphertext,

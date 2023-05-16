@@ -2,6 +2,7 @@
 #region Usings
 
 using Org.BouncyCastle.Crypto.Parameters;
+using System.Net.WebSockets;
 
 #endregion
 
@@ -51,10 +52,10 @@ namespace SAFESealing
         /// <param name="RecipientPublicKeys">An enumeration of recipient public key(s).</param>
         /// <param name="Nonce">A cryptographic nonce for increasing the entropy. A random number or a monotonic counter is recommended.</param>
         /// <returns>The wrapped and sealed message.</returns>
-        public Byte[] Seal(Byte[]                              Plaintext,
-                           ECPrivateKeyParameters              SenderPrivateKey,
-                           IEnumerable<ECPublicKeyParameters>  RecipientPublicKeys,
-                           Byte[]                              Nonce)
+        public ByteArray Seal(Byte[]                              Plaintext,
+                              ECPrivateKeyParameters              SenderPrivateKey,
+                              IEnumerable<ECPublicKeyParameters>  RecipientPublicKeys,
+                              Byte[]                              Nonce)
         {
 
             var asymmetricLayer  = ECDHEWithIntegrityPadding.AES256ECB;
@@ -74,13 +75,19 @@ namespace SAFESealing
                                        Nonce
                                    );
 
-            itt.EncryptedData    = asymmetricLayer.PadEncryptAndPackage(CompressionMode
-                                                                            ? Plaintext
-                                                                            : SAFESeal.TryToCompress(Plaintext,
-                                                                                                     itt),
+            var compressed       = CompressionMode
+                                       ? ByteArray.Ok           (Plaintext)
+                                       : SAFESeal. TryToCompress(Plaintext, itt);
+
+            if (compressed.HasErrors)
+                return compressed;
+
+            var encryptedData    = asymmetricLayer.PadEncryptAndPackage(compressed,
                                                                         RecipientPublicKeys,
                                                                         SenderPrivateKey,
                                                                         itt.KeyDiversificationData);
+
+            itt.EncryptedData    = encryptedData;
 
             return TransportFormatConverter.WrapForTransport(itt);
 
@@ -99,18 +106,20 @@ namespace SAFESealing
         /// <param name="RecipientPrivateKey">A private key of a recipient.</param>
         /// <param name="SenderPublicKey">A public key of a sender.</param>
         /// <returns>The plaintext, when everything went OK and the integrity has been validated.</returns>
-        public Byte[] Reveal(Byte[]                  SealedInput,
-                             ECPrivateKeyParameters  RecipientPrivateKey,
-                             ECPublicKeyParameters   SenderPublicKey) // is one sender public key enough if several were used in sending?
+        public ByteArray Reveal(Byte[]                  SealedInput,
+                                       ECPrivateKeyParameters  RecipientPrivateKey,
+                                       ECPublicKeyParameters   SenderPublicKey) // is one sender public key enough if several were used in sending?
         {
 
-            var tuple            = TransportFormatConverter.UnwrapTransportFormat(SealedInput)
-                                       ?? throw new Exception("Invalid transport tuple!");
+            var tuple            = TransportFormatConverter.UnwrapTransportFormat(SealedInput);
+            if (tuple.Item1 is null || tuple.Item1.EncryptedData is null || tuple.Item1.EncryptedData.Length == 0)
+                return ByteArray.Error("Invalid transport tuple!");
 
             #region Compression settings
 
-            var compressionOID   = (tuple.CryptoSettings.Compression?.OID)
-                                       ?? throw new Exception("Invalid compression information!");
+            var compressionOID   = tuple.Item1.CryptoSettings.Compression?.OID;
+            if (compressionOID is null)
+                return ByteArray.Error("Invalid compression information!");
 
             if      (compressionOID.Equals(AlgorithmSpecCollection.COMPRESSION_GZIP.OID))
                 CompressionMode  = true;
@@ -119,20 +128,20 @@ namespace SAFESealing
                 CompressionMode  = false;
 
             else
-                throw new Exception("Invalid or unknown compression!");
+                return ByteArray.Error("Invalid or unknown compression!");
 
             #endregion
 
 
             var payload          = ECDHEWithIntegrityPadding.AES256ECB.
 
-                                       DecryptAndVerify(tuple.EncryptedData,
+                                       DecryptAndVerify(tuple.Item1.EncryptedData,
                                                         SenderPublicKey,
                                                         RecipientPrivateKey,
-                                                        tuple.KeyDiversificationData,
-                                                        tuple.CryptoIV);
+                                                        tuple.Item1.KeyDiversificationData,
+                                                        tuple.Item1.CryptoIV);
 
-            return CompressionMode
+            return CompressionMode && payload.HasNoErrors
                        ? SAFESeal.InflateZLIBcompressedData(payload)
                        : payload;
 

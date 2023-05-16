@@ -87,11 +87,15 @@ namespace SAFESealing.Tests
                                                             Encoding.UTF8.GetBytes(plaintext1),
                                                             testNonce);
 
+                Assert.IsTrue(sealedData.HasNoErrors);
+
+
                 // RECIPIENT performs revealing
                 var plaintext2  = new SAFESealRevealer().Reveal(senderECPublicKey,
                                                                 recipientECPrivateKey,
                                                                 sealedData);
 
+                Assert.IsTrue  (plaintext2.HasNoErrors);
                 Assert.AreEqual(plaintext1, Encoding.UTF8.GetString(plaintext2));
 
             }
@@ -128,11 +132,15 @@ namespace SAFESealing.Tests
                                                             Encoding.UTF8.GetBytes(plaintext1),
                                                             testNonce);
 
+                Assert.IsTrue(sealedData.HasNoErrors);
+
+
                 // RECIPIENT performs revealing
                 var plaintext2  = new SAFESealRevealer().Reveal(senderECPublicKey,
                                                                 recipientECPrivateKey,
                                                                 sealedData);
 
+                Assert.IsTrue  (plaintext2.HasNoErrors);
                 Assert.AreEqual(plaintext1, Encoding.UTF8.GetString(plaintext2));
 
             }

@@ -35,9 +35,9 @@ namespace SAFESealing
         /// <param name="SenderPublicKey">An elliptic curve public key of the sender.</param>
         /// <param name="RecipientPrivateKey">An elliptic curve private key of a recipient.</param>
         /// <param name="SealedMessage">A sealed message.</param>
-        public Byte[] Reveal(ECPublicKeyParameters   SenderPublicKey,
-                             ECPrivateKeyParameters  RecipientPrivateKey,
-                             Byte[]                  SealedMessage)
+        public ByteArray Reveal(ECPublicKeyParameters   SenderPublicKey,
+                                ECPrivateKeyParameters  RecipientPrivateKey,
+                                Byte[]                  SealedMessage)
         {
             try
             {
@@ -51,11 +51,8 @@ namespace SAFESealing
             }
             catch (Exception e)
             {
-                // Hiding the specific exception to prevent "padding oracle" type attacks, and simplify usage.
-                Debug.WriteLine(e);
+                return ByteArray.Exception(e);
             }
-
-            return Array.Empty<Byte>();
 
         }
 
@@ -68,8 +65,8 @@ namespace SAFESealing
         /// </summary>
         /// <param name="SenderPublicKey">An elliptic curve public key of the sender.</param>
         /// <param name="SealedMessage">A sealed message.</param>
-        public Byte[] Reveal(RSAPublicKey  SenderPublicKey,
-                             Byte[]        SealedMessage)
+        public ByteArray Reveal(RSAPublicKey  SenderPublicKey,
+                                Byte[]        SealedMessage)
         {
             try
             {
@@ -82,11 +79,8 @@ namespace SAFESealing
             }
             catch (Exception e)
             {
-                // Hiding the specific exception to prevent "padding oracle" type attacks, and simplify usage.
-                Debug.WriteLine(e);
+                return ByteArray.Exception(e);
             }
-
-            return Array.Empty<Byte>();
 
         }
 
@@ -100,13 +94,13 @@ namespace SAFESealing
         /// <param name="RawSenderPublicKey">A RAW public key of a sender as an array of bytes.</param>
         /// <param name="RawRecipientPrivateKey">A RAW private key of a recipient as an array of bytes.</param>
         /// <param name="SealedMessage">A sealed message.</param>
-        public Byte[] Reveal(Byte[] RawSenderPublicKey,
-                             Byte[] RawRecipientPrivateKey,
-                             Byte[] SealedMessage)
+        public ByteArray Reveal(Byte[]  RawSenderPublicKey,
+                                Byte[]  RawRecipientPrivateKey,
+                                Byte[]  SealedMessage)
         {
             // todo perform deterministic conversion from bytearrays to keys.
             // then call the "real" function
-            return Array.Empty<Byte>();
+            return ByteArray.Error("Not implemented!");
         }
 
         #endregion

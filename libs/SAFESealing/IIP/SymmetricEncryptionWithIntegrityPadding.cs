@@ -185,15 +185,15 @@ namespace SAFESealing
         /// </summary>
         /// <param name="Plaintext">A plaintext.</param>
         /// <param name="SecretKey">A crypto key.</param>
-        public Byte[] EncryptOnly(Byte[]        Plaintext,
-                                  KeyParameter  SecretKey)
+        public ByteArray EncryptOnly(Byte[]        Plaintext,
+                                     KeyParameter  SecretKey)
         {
 
             if (Plaintext.Length == 0)
-                throw new ArgumentNullException(nameof(Plaintext));
+                return ByteArray.Error("Invalid plaintext!");
 
             if (SecretKey.GetKey().Length != 32)
-                throw new ArgumentException("Key must be 256 bits (32 bytes) long.", nameof(SecretKey));
+                return ByteArray.Error("Secret key must be exactly 256 bits (32 bytes) long!");
 
             if (IVRequired && IV.Length == 0)
             {
@@ -222,7 +222,7 @@ namespace SAFESealing
                 var outputLength  = bufferedBlockCipher.ProcessBytes(Plaintext, 0, Plaintext.Length, output, 0);
                 bufferedBlockCipher.DoFinal(output, outputLength);
 
-                return output;
+                return ByteArray.Ok(output);
 
             }
 
@@ -242,19 +242,12 @@ namespace SAFESealing
                 var outputLength  = paddedBufferedBlockCipher.ProcessBytes(Plaintext, 0, Plaintext.Length, output, 0);
                 paddedBufferedBlockCipher.DoFinal(output, outputLength);
 
-                return output;
+                return ByteArray.Ok(output);
 
             }
 
             else
-                throw new Exception("No cipher available!");
-
-
-            //cipher.Init(CipherMode.ENCRYPT_MODE,
-            //            SecretKey,
-            //            new SecureRandom()); 
-
-            //return cipher.DoFinal(Plaintext);
+                return ByteArray.Error("No cipher available!");
 
         }
 
@@ -263,15 +256,23 @@ namespace SAFESealing
         #region PadAndEncrypt(Plaintext, SecretKey)
 
         /// <summary>
-        /// 
+        /// Pad and encrypt.
         /// </summary>
         /// <param name="Plaintext">A plaintext.</param>
         /// <param name="SecretKey">A crypto key.</param>
-        public Byte[] PadAndEncrypt(Byte[]        Plaintext,
-                                    KeyParameter  SecretKey)
+        public ByteArray PadAndEncrypt(Byte[]        Plaintext,
+                                       KeyParameter  SecretKey)
+        {
 
-            => EncryptOnly(IntegrityPaddingInstance.PerformPadding(Plaintext),
-                           SecretKey);
+            var padded = IntegrityPaddingInstance.PerformPadding(Plaintext);
+
+            if (padded.HasErrors)
+                return ByteArray.Error("Invalid padding!");
+
+            return EncryptOnly(padded,
+                               SecretKey);
+
+        }
 
         #endregion
 
@@ -284,16 +285,16 @@ namespace SAFESealing
         /// <param name="Ciphertext">A ciphertext.</param>
         /// <param name="SecretKey">A crypto key.</param>
         /// <param name="InitializationVector">An optional cryptographic initialization vector.</param>
-        public Byte[] DecryptAndCheck(Byte[]        Ciphertext,
-                                      KeyParameter  SecretKey,
-                                      Byte[]?       InitializationVector   = null)
+        public ByteArray DecryptAndCheck(Byte[]        Ciphertext,
+                                         KeyParameter  SecretKey,
+                                         Byte[]?       InitializationVector   = null)
         {
 
             if (Ciphertext.Length == 0)
-                throw new ArgumentNullException(nameof(Ciphertext));
+                return ByteArray.Error("Invalid ciphertext!");
 
             if (SecretKey.GetKey().Length != 32)
-                throw new ArgumentException("Key must be 256 bits (32 bytes) long.", nameof(SecretKey));
+                return ByteArray.Error("Key must be 256 bits (32 bytes) long!");
 
             if (bufferedBlockCipher is not null)
             {
@@ -311,7 +312,7 @@ namespace SAFESealing
                 var outputLength  = bufferedBlockCipher.ProcessBytes(Ciphertext, 0, Ciphertext.Length, output, 0);
                 bufferedBlockCipher.DoFinal(output, outputLength);
 
-                return IntegrityPaddingInstance.CheckAndExtract(output);
+                return IntegrityPaddingInstance.VerifyAndExtract(output);
 
             }
 
@@ -333,12 +334,12 @@ namespace SAFESealing
                 var outputLength  = paddedBufferedBlockCipher.ProcessBytes(Ciphertext, 0, Ciphertext.Length, output, 0);
                 paddedBufferedBlockCipher.DoFinal(output, outputLength);
 
-                return IntegrityPaddingInstance.CheckAndExtract(output);
+                return IntegrityPaddingInstance.VerifyAndExtract(output);
 
             }
 
             else
-                throw new Exception("No cipher available!");
+                return ByteArray.Error("No cipher available!");
 
 
             //if (InitializationVector is not null && InitializationVector.Length > 0)

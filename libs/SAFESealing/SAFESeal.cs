@@ -29,24 +29,30 @@ namespace SAFESealing
         /// </summary>
         /// <param name="Payload">Data to decompress/inflate</param>
         /// <returns>Decompressed/inflated data</returns>
-        public static Byte[] InflateZLIBcompressedData(Byte[] CompressedData)
+        public static ByteArray InflateZLIBcompressedData(Byte[] CompressedData)
         {
 
-            Byte[] decompressedData;
-
-            using (var compressedStream = new MemoryStream(CompressedData))
+            try
             {
-                using (var deflateStream = new DeflateStream(compressedStream, System.IO.Compression.CompressionMode.Decompress))
-                {
-                    using (var decompressedStream = new MemoryStream())
-                    {
-                        deflateStream.CopyTo(decompressedStream);
-                        decompressedData = decompressedStream.ToArray();
-                    }
-                }
-            }
 
-            return decompressedData;
+                using var compressedStream    = new MemoryStream(CompressedData);
+
+                using var deflateStream       = new DeflateStream(
+                                                    compressedStream,
+                                                    CompressionMode.Decompress
+                                                );
+
+                using var decompressedStream  = new MemoryStream();
+
+                deflateStream.CopyTo(decompressedStream);
+
+                return ByteArray.Ok(decompressedStream.ToArray());
+
+            }
+            catch (Exception e)
+            {
+                return ByteArray.Exception(e);
+            }
 
 
             //var inflater   = new Inflater(true); // nowrap is important for our use case.
@@ -90,35 +96,44 @@ namespace SAFESealing
         /// <param name="RAWPayload">Content to compress</param>
         /// <param name="ITT">ITT settings, where we'd note the compression algorithm if any.</param>
         /// <returns>Payload for further processing (compressed or not)</returns>
-        public static Byte[] TryToCompress(Byte[]                  RAWPayload,
-                                           InternalTransportTuple  ITT)
+        public static ByteArray TryToCompress(Byte[]                  RAWPayload,
+                                              InternalTransportTuple  ITT)
         {
 
-            var inputSize = RAWPayload.Length;
-
-            Byte[] compressedData;
-
-            using (var compressedStream = new MemoryStream())
+            try
             {
 
-                using (var deflateStream = new DeflateStream(compressedStream, CompressionLevel.SmallestSize))
+                var inputSize = RAWPayload.Length;
+
+                Byte[] compressedData;
+
+                using (var compressedStream = new MemoryStream())
                 {
-                    deflateStream.Write(RAWPayload, 0, RAWPayload.Length);
+
+                    using (var deflateStream = new DeflateStream(compressedStream, CompressionLevel.SmallestSize))
+                    {
+                        deflateStream.Write(RAWPayload, 0, RAWPayload.Length);
+                    }
+
+                    compressedData = compressedStream.ToArray();
+
                 }
 
-                compressedData = compressedStream.ToArray();
+                if (compressedData.Length < inputSize)
+                {
+                    //ITT.cryptoSettings.setCompressionOID(COMPRESSION_GZIP.getOID());
+                    return ByteArray.Ok(compressedData);
+                }
+                else
+                {
+                    //ITT.cryptoSettings.setCompressionOID(COMPRESSION_NONE.getOID());
+                    return ByteArray.Ok(RAWPayload);
+                }
 
             }
-
-            if (compressedData.Length < inputSize)
+            catch (Exception e)
             {
-                //itt.cryptoSettings.setCompressionOID(COMPRESSION_GZIP.getOID());
-                return compressedData;
-            }
-            else
-            {
-                //itt.cryptoSettings.setCompressionOID(COMPRESSION_NONE.getOID());
-                return RAWPayload;
+                return ByteArray.Exception(e);
             }
 
             //var tmp      = new Byte[inputSize];

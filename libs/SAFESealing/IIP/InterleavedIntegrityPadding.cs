@@ -1,8 +1,6 @@
 ﻿
 #region Usings
 
-using System.Diagnostics;
-
 using Org.BouncyCastle.Security;
 
 #endregion
@@ -67,20 +65,20 @@ namespace SAFESealing
         /// Perform the Integrity Padding on the given payload.
         /// </summary>
         /// <param name="Payload">Input data for the padding.</param>
-        public Byte[] PerformPadding(Byte[] Payload)
+        public ByteArray PerformPadding(Byte[] Payload)
         {
 
             var bufferSizeRequiredLong = CalculateNumberOfBytesOverall((UInt32) Payload.Length,
                                                                        cipherBlockSize);
 
             if (bufferSizeRequiredLong > Int32.MaxValue)
-                throw new Exception($"The gieven payload is too large. Its maximum size in byte is {Int32.MaxValue}!");
+                return ByteArray.Error($"The gieven payload is too large. Its maximum size in byte is {Int32.MaxValue}!");
 
             using var paddedDataStream = new MemoryStream(new Byte[(Int32) bufferSizeRequiredLong]);
             //paddedDataStream.order(ByteOrder.BIG_ENDIAN); // Network byte order defined.
 
 
-            #region Write IPP Header
+            #region Write Interleaved Integrity Padding header
 
             // Write MAGIC ID, shortened if needed.
             var magicIdLengthRequired = CalculateMagicIdSizeUsed();
@@ -112,9 +110,9 @@ namespace SAFESealing
 
             #endregion
 
-            #region Write input data
+            #region Write payload data
 
-            for (var offset = 0U; offset<Payload.Length; offset += payloadBytesPerBlock)
+            for (var offset = 0U; offset < Payload.Length; offset += payloadBytesPerBlock)
             {
 
                 // pre-increment (not post)
@@ -125,10 +123,10 @@ namespace SAFESealing
                 paddedDataStream.Write(BitConverter.GetBytes((Int32) (nonceWithCounter & 0x0FFFFFFFFL)));
 
                 // Wenn wir dem ende des blocks näher kommen...
-                var remainder = Payload.Length-offset;
+                var remainder = Payload.Length - offset;
                 paddedDataStream.Write(Payload,
-                                        (Int32) offset,
-                                        (Int32) Math.Min(remainder, payloadBytesPerBlock));
+                                       (Int32) offset,
+                                       (Int32) Math.Min(remainder, payloadBytesPerBlock));
 
             }
 
@@ -159,72 +157,91 @@ namespace SAFESealing
 
             // With clean block input, this should equal block length
             // Return number of bytes used
-            return paddedDataStream.ToArray();
+            return ByteArray.Ok(paddedDataStream.ToArray());
 
         }
 
         #endregion
 
-        #region CheckAndExtract(PaddedData)
+        #region VerifyAndExtract(PaddedData)
 
         /// <summary>
-        /// Validate the Integrity Padding, and extract payload data.
+        /// Verify the Interleaved Integrity Padding, and extract payload data.
         /// </summary>
         /// <param name="PaddedData">Data to perform validation on.</param>
-        public Byte[] CheckAndExtract(Byte[] PaddedData)
+        public ByteArray VerifyAndExtract(Byte[] PaddedData)
         {
 
-            if (PaddedData.Length % cipherBlockSize != 0)
-                throw new Exception("Invalid buffer size!");
+            #region Data
 
-            var success                 = true;
-            var magicId                 = new Byte[MAGIC_ID_LENGTH];
-            var nonce                   = new Byte[NONCE_SIZE];
-            var lengthBuffer            = new Byte[PAYLOAD_LENGTH_SIZE];
-            var devNull                 = new Byte[1];
-            var int32Buffer             = new Byte[4];
-            var paddedDataStream        = new MemoryStream(PaddedData);
+            if (PaddedData.Length == 0)
+                return ByteArray.Error("Invalid padded data!");
+
+            if (PaddedData.Length % cipherBlockSize != 0)
+                return ByteArray.Error("Invalid padded data!");
+
+            var success           = true;
+            var magicId           = new Byte[MAGIC_ID_LENGTH];
+            var nonce             = new Byte[NONCE_SIZE];
+            var lengthBuffer      = new Byte[PAYLOAD_LENGTH_SIZE];
+            var devNull           = new Byte[1];
+            var int32Buffer       = new Byte[4];
+            var paddedDataStream  = new MemoryStream(PaddedData);
             //paddedDataStream.order(ByteOrder.BIG_ENDIAN);
 
-            var magicIdLengthExpected   = CalculateMagicIdSizeUsed();
-            var numHeaderPaddingBytes   = cipherBlockSize - (magicIdLengthExpected + NONCE_SIZE + PAYLOAD_LENGTH_SIZE);
+            #endregion
 
             try
             {
 
-                // 1. Read and verify MAGIC ID
+                #region 1. Read and verify MAGIC ID
+
+                var magicIdLengthExpected   = CalculateMagicIdSizeUsed();
+                var numHeaderPaddingBytes   = cipherBlockSize - (magicIdLengthExpected + NONCE_SIZE + PAYLOAD_LENGTH_SIZE);
+
                 paddedDataStream.Read(magicId, 0, (Int32) magicIdLengthExpected);
 
                 if (CompareBytes(magicId, MAGIC_ID_VERSION_1_0, magicIdLengthExpected) == false)
-                    throw new Exception("Format error!");
+                    return ByteArray.Error("Format error!");
 
-                // 2. Skip padding bytes
+                #endregion
+
+                #region 2. Skip padding bytes
+
                 while (numHeaderPaddingBytes > 0)
                 {
                     paddedDataStream.Read(devNull);
                     numHeaderPaddingBytes--;
                 }
 
-                // 3. Read Nonce
+                #endregion
+
+                #region 3. Read Nonce
+
                 paddedDataStream.Read(nonce);
                 var nonceCounter           = BitConverter.ToUInt32(nonce,        0);
 
-                // 4. Read payload length, implementation limit 4 GB
-                //    In case, we have to quit early, since we cannot predict the number of subsequent blocks correctly!
+                #endregion
+
+                #region 4. Read payload length, implementation limit 4 GB
+                //    Maybe we have to quit early, since we cannot predict the number of subsequent blocks correctly!
+
                 paddedDataStream.Read(lengthBuffer);
                 var payloadLength          = BitConverter.ToUInt32(lengthBuffer, 0);
 
                 if (payloadLength >= PaddedData.Length)
-                    throw new Exception($"Payload length {payloadLength} >= PaddedData length {PaddedData.Length}!");
+                    return ByteArray.Error($"Payload length {payloadLength} >= PaddedData length {PaddedData.Length}!");
 
                 var expectedPayloadBlocks  = CalculateNumberOfPayloadBlocks(payloadLength,
                                                                             payloadBytesPerBlock);
 
-                // 5. Prepare output buffer. -- for supplied buffers, there is a requirement of minimum size to be checked.
-                var payloadBuffer          = new Byte[payloadLength];
+                #endregion
 
-                // 6. Loop through all expected blocks
+                #region 5. Loop through all expected blocks
+
+                var payloadBuffer          = new Byte[payloadLength];
                 var payloadOffset          = 0U;
+
                 for (var i = 0; i<expectedPayloadBlocks; i++)
                 {
 
@@ -247,7 +264,9 @@ namespace SAFESealing
 
                 }
 
-                // 7. Check whether to expect a trailing block or not
+                #endregion
+
+                #region 6. Check whether to expect a trailing block or not
 
                 if (payloadLength % payloadBytesPerBlock == 0) // perfect match means trailing block
                 {
@@ -268,28 +287,30 @@ namespace SAFESealing
 
                 }
 
-                // 11. Plausibility check whether we've accurately reached the end.
+                #endregion
+
+                #region 7. Plausibility checks
+
+                // Whether we've accurately reached the end.
                 if (payloadOffset < payloadLength)
                     success = false;
 
-                // Plausibility check whether the remaining # of bytes is less than blocksize. otherwise, something's off.
-                //if (bb.hasArray()) // arrayOffset is available only if this is given.
-                //{
-                //    if (bb.arrayOffset()%cipherBlockSize>payloadBytesPerBlock)
-                //        success = false;
-                //}
+                // Whether the remaining # of bytes is less than blocksize. otherwise, something's off.
+                if (paddedDataStream.Position % cipherBlockSize > payloadBytesPerBlock)
+                    success = false;
 
-                if (success != true)
-                    throw new Exception();
+                #endregion
 
-                return payloadBuffer;
+                if (!success)
+                    return ByteArray.Error("Something wicked happened!");
+
+                return ByteArray.Ok(payloadBuffer);
 
             }
             catch (Exception e)
             {
                 // integer overflow from Math.toIntExact if one of those values is corrupted
-                Debug.WriteLine(e);
-                throw;
+                return ByteArray.Exception(e);
             }
 
         }

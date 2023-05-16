@@ -1,13 +1,7 @@
 ﻿
 #region Usings
 
-using Org.BouncyCastle.Asn1.IsisMtt.X509;
-using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Security;
-using System.IO;
-using System.Net.NetworkInformation;
-using System.Security.Cryptography.X509Certificates;
 
 #endregion
 
@@ -103,14 +97,16 @@ namespace SAFESealing
         /// </summary>
         /// <param name="Plaintext">A plaintext.</param>
         /// <param name="OurRSAPrivateKey">A RSA private key.</param>
-        public Byte[] PadEncryptAndPackage(Byte[]         Plaintext,
-                                           RSAPrivateKey  OurRSAPrivateKey)
+        public ByteArray PadEncryptAndPackage(Byte[]         Plaintext,
+                                              RSAPrivateKey  OurRSAPrivateKey)
         {
 
             var padded          = integrityPaddingInstance.PerformPadding(Plaintext);
+            if (padded.HasErrors)
+                return padded;
 
             if (padded.Length % algorithmSpec.UsableBlockSize != 0)
-                throw new Exception("The length of the given plaintext doesn't match the key size!");
+                return ByteArray.Error("The length of the given plaintext doesn't match the key size!");
 
 
             // Here we init RSA with the PRIVATE KEY!
@@ -166,7 +162,7 @@ namespace SAFESealing
             // cleanup as far as possible
             //Arrays.fill(padded, (byte) 0x00);
 
-            return encrypted;
+            return ByteArray.Ok(encrypted);
 
         }
 
@@ -179,12 +175,12 @@ namespace SAFESealing
         /// </summary>
         /// <param name="Ciphertext">A ciphertext.</param>
         /// <param name="SenderRSAPublicKey">A RSA public key.</param>
-        public Byte[] DecryptAndVerify(Byte[]        Ciphertext,
-                                       RSAPublicKey  SenderRSAPublicKey)
+        public ByteArray DecryptAndVerify(Byte[]        Ciphertext,
+                                          RSAPublicKey  SenderRSAPublicKey)
         {
 
             if (Ciphertext.Length % algorithmSpec.CipherBlockSize != 0)
-                throw new Exception("The length of the given ciphertext doesn't match the key size!");
+                return ByteArray.Error("The length of the given ciphertext doesn't match the key size!");
 
             var numBlocks     = Ciphertext.Length / algorithmSpec.CipherBlockSize;
             var decrypted     = new Byte[numBlocks * algorithmSpec.UsableBlockSize];
@@ -227,14 +223,7 @@ namespace SAFESealing
 
             }
 
-            // now validate padding and extract payload
-            var payload = integrityPaddingInstance.CheckAndExtract(decrypted);
-
-            // cleanup as far as possible
-            //Arrays.fill(decrypted, (byte) 0x00);
-
-            // return result
-            return payload;
+            return integrityPaddingInstance.VerifyAndExtract(decrypted);
 
         }
 

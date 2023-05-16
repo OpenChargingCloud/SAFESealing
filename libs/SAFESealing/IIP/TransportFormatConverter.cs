@@ -22,7 +22,7 @@ namespace SAFESealing
         /// Wrap for transport
         /// </summary>
         /// <param name="TransportTuple">An internal transport tuple.</param>
-        public static Byte[] WrapForTransport(InternalTransportTuple TransportTuple)
+        public static ByteArray WrapForTransport(InternalTransportTuple TransportTuple)
         {
 
             #region Encryption    Sequence
@@ -116,7 +116,7 @@ namespace SAFESealing
             #endregion
 
             // bufferStream.write(0x00); bufferStream.write(0x00); // explicit EOC/EOS - fully optional, but safer.
-            return bufferStream.ToArray();
+            return ByteArray.Ok(bufferStream.ToArray());
 
         }
 
@@ -128,7 +128,7 @@ namespace SAFESealing
         /// Unwrap the transport format, including sanity checks.
         /// </summary>
         /// <param name="TransportWrapped">Wrapped binary data.</param>
-        public static InternalTransportTuple? UnwrapTransportFormat(Byte[] TransportWrapped)
+        public static (InternalTransportTuple?, String) UnwrapTransportFormat(Byte[] TransportWrapped)
         {
 
             try
@@ -142,7 +142,7 @@ namespace SAFESealing
                 var protocolVersion         = DerInteger.         GetInstance(iipHeaderSequence[1]);   // 1                     => SAFE Sealing version
 
                 if (!SharedConstants.OID_SAFE_SEAL.Equals(protocolIdentification))
-                    throw new Exception($"Unkown protocol identification '{protocolIdentification.Id}'!");
+                    return (null, $"Unkown protocol identification '{protocolIdentification.Id}'!");
 
                 #endregion
 
@@ -220,16 +220,16 @@ namespace SAFESealing
                                         var nonceSizeInBit = (UInt32) ((DerInteger) taggedObject.GetObject()).Value.IntValue;
                                             //DerInteger.GetInstance(taggedObject.getBaseUniversal(true,BERTags.INTEGER)).intPositiveValueExact();
                                         if (nonceSizeInBit != InterleavedIntegrityPadding.NONCE_SIZE * 8)
-                                            throw new Exception("this version uses fixed nonce size.");
+                                            return (null, "this version uses fixed nonce size.");
                                         break;
 
                                     default:
-                                        throw new Exception("tag " + taggedObject.TagNo + " not handled"); //@IMPROVE
+                                        return (null, "tag " + taggedObject.TagNo + " not handled"); //@IMPROVE
                                     }
                                 break;
 
                             default:
-                                throw new Exception("ASN.1 class " + entry.GetType().Name + " not handled"); //@IMPROVE
+                                return (null, "ASN.1 class " + entry.GetType().Name + " not handled"); //@IMPROVE
 
                         }
 
@@ -283,19 +283,19 @@ namespace SAFESealing
                                             break;
 
                                         case 2:
-                                            throw new Exception("version mismatch; EC parameters not supported in this version.");
+                                            return (null, "version mismatch; EC parameters not supported in this version.");
 
                                         case 3:
-                                            throw new Exception("version mismatch; public key reference not supported in this version");
+                                            return (null, "version mismatch; public key reference not supported in this version");
 
                                         default:
-                                            throw new Exception("format error");
+                                            return (null, "format error");
 
                                     }
                                     break;
 
                                 default:
-                                    throw new Exception("ASN.1 class " + entry.GetType().Name + " not handled"); //@IMPROVE
+                                    return (null, "ASN.1 class " + entry.GetType().Name + " not handled"); //@IMPROVE
 
                             }
                         }
@@ -322,38 +322,37 @@ namespace SAFESealing
 
 
                     if (encryptionAlgorithm is null)
-                        throw new Exception("The encryption algorithm must not be null!");
+                        return (null, "The encryption algorithm must not be null!");
 
                     if (compressionAlgorithm is null)
-                        throw new Exception("The compression algorithm must not be null!");
+                        return (null, "The compression algorithm must not be null!");
 
-                    return new InternalTransportTuple(new CryptoSettings(
-                                                          KeyAgreementProtocolToUse:  keyAgreementAlgorithm,
-                                                          KeyAgreementCipherToUse:    keyAgreementCipherToUse,
-                                                          KeyDiversificationToUse:    keyDiversificationAlgorithm,
-                                                          EncryptionToUse:            encryptionAlgorithm,
-                                                          CompressionUsed:            compressionAlgorithm,
-                                                          PaddingToUse:               paddingAlgorithm,
-                                                          EncryptionKeySize:          encryptionKeySize
-                                                      ),
-                                                      cryptoIV,
-                                                      encryptedData,
-                                                      keyDiversificationData);
+                    return (new InternalTransportTuple(new CryptoSettings(
+                                                           KeyAgreementProtocolToUse:  keyAgreementAlgorithm,
+                                                           KeyAgreementCipherToUse:    keyAgreementCipherToUse,
+                                                           KeyDiversificationToUse:    keyDiversificationAlgorithm,
+                                                           EncryptionToUse:            encryptionAlgorithm,
+                                                           CompressionUsed:            compressionAlgorithm,
+                                                           PaddingToUse:               paddingAlgorithm,
+                                                           EncryptionKeySize:          encryptionKeySize
+                                                       ),
+                                                       cryptoIV,
+                                                       encryptedData,
+                                                       keyDiversificationData),
+                            String.Empty);
 
                 }
 
                 #endregion
 
                 else
-                    throw new Exception($"Unkown protocol version '{protocolVersion.IntPositiveValueExact}'!");
+                    return (null, $"Unkown protocol version '{protocolVersion.IntPositiveValueExact}'!");
 
             }
             catch (Exception e)
             {
-                Debug.WriteLine(e);
+                return (null, e.Message);
             }
-
-            return null;
 
         }
 
